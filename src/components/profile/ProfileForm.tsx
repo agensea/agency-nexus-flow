@@ -18,11 +18,11 @@ import { supabase } from "@/integrations/supabase/client";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import ProfileAvatar from "./ProfileAvatar";
-import { format, parse } from "date-fns";
+import { format } from "date-fns";
 
 const profileFormSchema = z.object({
   name: z.string().min(2, { message: "Name must be at least 2 characters." }),
-  email: z.string().email({ message: "Please enter a valid email address." }),
+  email: z.string().email({ message: "Please enter a valid email address." }).optional(),
   phone: z.string().optional(),
   birthdate: z.string().optional(),
   department: z.string().optional(),
@@ -61,10 +61,13 @@ const ProfileForm = () => {
 
         if (error) throw error;
 
+        // Get user email from auth context since it might not be in the profiles table
+        const userEmail = user.email || "";
+
         if (data) {
           form.reset({
             name: data.name || "",
-            email: data.email || "",
+            email: userEmail,
             phone: data.phone || "",
             birthdate: data.birthdate 
               ? format(new Date(data.birthdate), "yyyy-MM-dd") 
@@ -93,7 +96,6 @@ const ProfileForm = () => {
       const updates = {
         id: user.id,
         name: values.name,
-        email: values.email,
         phone: values.phone || null,
         birthdate: values.birthdate ? new Date(values.birthdate).toISOString() : null,
         department: values.department || null,
@@ -173,9 +175,12 @@ const ProfileForm = () => {
                 <FormItem>
                   <FormLabel>Email</FormLabel>
                   <FormControl>
-                    <Input placeholder="Your email" {...field} />
+                    <Input placeholder="Your email" {...field} disabled readOnly className="bg-muted" />
                   </FormControl>
                   <FormMessage />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Email can only be changed in account settings.
+                  </p>
                 </FormItem>
               )}
             />
