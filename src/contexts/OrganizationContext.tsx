@@ -45,7 +45,7 @@ export const OrganizationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         // Check if user belongs to any organization
         const { data: teamMemberData, error: teamMemberError } = await supabase
           .from('team_members')
-          .select('*, organizations(*), organization_settings(*)')
+          .select('*')
           .eq('user_id', user.id)
           .eq('status', 'active')
           .single();
@@ -57,21 +57,47 @@ export const OrganizationProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
         if (teamMemberData) {
           // User belongs to an organization
-          const orgData = teamMemberData.organizations;
-          const settingsData = teamMemberData.organization_settings;
+          // Fetch organization data
+          const { data: orgData, error: orgError } = await supabase
+            .from('organizations')
+            .select('*')
+            .eq('id', teamMemberData.organization_id)
+            .single();
+
+          if (orgError) {
+            console.error('Error fetching organization data:', orgError);
+            throw orgError;
+          }
+
+          // Fetch organization settings
+          const { data: settingsData, error: settingsError } = await supabase
+            .from('organization_settings')
+            .select('*')
+            .eq('organization_id', teamMemberData.organization_id)
+            .single();
+
+          if (settingsError && settingsError.code !== 'PGRST116') {
+            console.error('Error fetching organization settings:', settingsError);
+            throw settingsError;
+          }
 
           // Fetch organization address if exists
-          const { data: addressData } = await supabase
+          const { data: addressData, error: addressError } = await supabase
             .from('organization_addresses')
             .select('*')
-            .eq('organization_id', orgData.id)
+            .eq('organization_id', teamMemberData.organization_id)
             .maybeSingle();
+
+          if (addressError && addressError.code !== 'PGRST116') {
+            console.error('Error fetching organization address:', addressError);
+            throw addressError;
+          }
 
           // Fetch all team members for this organization
           const { data: membersData, error: membersError } = await supabase
             .from('team_members')
             .select('*')
-            .eq('organization_id', orgData.id);
+            .eq('organization_id', teamMemberData.organization_id);
 
           if (membersError) {
             console.error('Error fetching team members:', membersError);
@@ -82,7 +108,7 @@ export const OrganizationProvider: React.FC<{ children: React.ReactNode }> = ({ 
           const { data: invitesData, error: invitesError } = await supabase
             .from('invites')
             .select('*')
-            .eq('organization_id', orgData.id)
+            .eq('organization_id', teamMemberData.organization_id)
             .eq('status', 'pending');
 
           if (invitesError) {
@@ -220,34 +246,25 @@ export const OrganizationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         
       if (memberError) throw memberError;
       
-      // Reload organization data
-      const { data: newOrgData, error: newOrgError } = await supabase
-        .from('organizations')
-        .select('*, organization_settings(*)')
-        .eq('id', orgData.id)
-        .single();
-        
-      if (newOrgError) throw newOrgError;
-      
       // Create the formatted organization object
       const settings: OrganizationSettings = {
-        allowClientInvites: newOrgData.organization_settings.allow_client_invites,
-        allowTeamInvites: newOrgData.organization_settings.allow_team_invites,
-        defaultTaskView: newOrgData.organization_settings.default_task_view as 'list' | 'board' | 'calendar',
-        color: newOrgData.organization_settings.color,
+        allowClientInvites: true,
+        allowTeamInvites: true,
+        defaultTaskView: 'board',
+        color: '#6366f1',
       };
       
       const newOrg: Organization = {
-        id: newOrgData.id,
-        name: newOrgData.name,
-        logo: newOrgData.logo,
-        email: newOrgData.email,
-        phone: newOrgData.phone,
-        taxId: newOrgData.tax_id,
-        currency: newOrgData.currency,
-        createdById: newOrgData.created_by_id,
-        createdAt: new Date(newOrgData.created_at),
-        updatedAt: new Date(newOrgData.updated_at),
+        id: orgData.id,
+        name: orgData.name,
+        logo: orgData.logo,
+        email: orgData.email,
+        phone: orgData.phone,
+        taxId: orgData.tax_id,
+        currency: orgData.currency,
+        createdById: orgData.created_by_id,
+        createdAt: new Date(orgData.created_at),
+        updatedAt: new Date(orgData.updated_at),
         plan: 'free',
         settings: settings,
       };
@@ -256,7 +273,7 @@ export const OrganizationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       const ownerMember: TeamMember = {
         id: user.id,
         userId: user.id,
-        organizationId: newOrgData.id,
+        organizationId: newOrg.id,
         role: 'owner',
         invitedBy: user.id,
         invitedAt: new Date(),
