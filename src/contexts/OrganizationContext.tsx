@@ -1,8 +1,8 @@
-
 import React, { createContext, useContext, useState, useEffect } from "react";
-import { Organization, OrganizationSettings, TeamMember, Invite } from "@/types";
+import { Organization, OrganizationSettings, TeamMember, Invite, Address } from "@/types";
 import { useAuth } from "./AuthContext";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
 
 interface OrganizationContextType {
   organization: Organization | null;
@@ -16,6 +16,7 @@ interface OrganizationContextType {
   revokeInvite: (inviteId: string) => Promise<void>;
   removeMember: (memberId: string) => Promise<void>;
   updateMemberRole: (memberId: string, role: "admin" | "member") => Promise<void>;
+  uploadLogo: (file: File) => Promise<string>;
 }
 
 const OrganizationContext = createContext<OrganizationContextType | null>(null);
@@ -167,6 +168,38 @@ export const OrganizationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       toast.success("Organization updated successfully");
     } catch (error: any) {
       toast.error(error.message || "Failed to update organization");
+      throw error;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Upload organization logo
+  const uploadLogo = async (file: File): Promise<string> => {
+    if (!organization) throw new Error("No organization selected");
+    
+    setLoading(true);
+    try {
+      // In a real implementation, we would upload the file to Supabase Storage
+      // For now, we'll create a data URL for the image
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          if (typeof reader.result === 'string') {
+            // Update organization with the new logo
+            const logoUrl = reader.result;
+            updateOrganization({ logo: logoUrl })
+              .then(() => resolve(logoUrl))
+              .catch(reject);
+          } else {
+            reject(new Error('Failed to read file'));
+          }
+        };
+        reader.onerror = () => reject(reader.error);
+        reader.readAsDataURL(file);
+      });
+    } catch (error: any) {
+      toast.error(error.message || "Failed to upload logo");
       throw error;
     } finally {
       setLoading(false);
@@ -334,6 +367,7 @@ export const OrganizationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         revokeInvite,
         removeMember,
         updateMemberRole,
+        uploadLogo,
       }}
     >
       {children}

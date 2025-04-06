@@ -15,6 +15,11 @@ export interface Organization {
   id: string;
   name: string;
   logo?: string;
+  email?: string;
+  phone?: string;
+  address?: Address;
+  taxId?: string;
+  currency?: string;
   createdById: string;
   createdAt: Date;
   updatedAt: Date;
