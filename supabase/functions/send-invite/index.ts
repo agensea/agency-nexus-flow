@@ -80,7 +80,7 @@ serve(async (req) => {
       inviteUrl: inviteUrl,
       organizationName: invite.organization.name,
       inviterName: invite.inviter?.name || "Someone",
-      recipientName: invite.name || "", 
+      recipientName: invite.name || "",
       department: invite.department || "",
     });
 
