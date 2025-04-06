@@ -18,7 +18,7 @@ interface OrganizationContextType {
   removeMember: (memberId: string) => Promise<void>;
   updateMemberRole: (memberId: string, role: "admin" | "member") => Promise<void>;
   uploadLogo: (file: File) => Promise<string>;
-  refreshOrganization: () => Promise<void>; // Added function
+  refreshOrganization: () => Promise<void>;
 }
 
 const OrganizationContext = createContext<OrganizationContextType | null>(null);
@@ -222,7 +222,7 @@ export const OrganizationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     try {
       console.log("Creating organization:", name);
       
-      // Insert new organization
+      // Step 1: Insert new organization
       const { data: orgData, error: orgError } = await supabase
         .from('organizations')
         .insert({
@@ -239,23 +239,7 @@ export const OrganizationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       
       console.log("Organization created:", orgData);
       
-      // Insert organization settings
-      const { error: settingsError } = await supabase
-        .from('organization_settings')
-        .insert({
-          organization_id: orgData.id,
-          allow_client_invites: true,
-          allow_team_invites: true,
-          default_task_view: 'board',
-          color: '#6366f1'
-        });
-        
-      if (settingsError) {
-        console.error("Error creating organization settings:", settingsError);
-        throw settingsError;
-      }
-      
-      // Insert the user as the owner of the organization
+      // Step 2: Insert the user as the owner of the organization
       const { error: memberError } = await supabase
         .from('team_members')
         .insert({
@@ -271,6 +255,26 @@ export const OrganizationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         console.error("Error creating team member:", memberError);
         throw memberError;
       }
+
+      console.log("Team member created for organization owner");
+      
+      // Step 3: Insert organization settings
+      const { error: settingsError } = await supabase
+        .from('organization_settings')
+        .insert({
+          organization_id: orgData.id,
+          allow_client_invites: true,
+          allow_team_invites: true,
+          default_task_view: 'board',
+          color: '#6366f1'
+        });
+        
+      if (settingsError) {
+        console.error("Error creating organization settings:", settingsError);
+        throw settingsError;
+      }
+      
+      console.log("Organization settings created");
       
       // Create the formatted organization object
       const settings: OrganizationSettings = {
@@ -705,7 +709,7 @@ export const OrganizationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         removeMember,
         updateMemberRole,
         uploadLogo,
-        refreshOrganization, // Add the new function to the context
+        refreshOrganization,
       }}
     >
       {children}
