@@ -47,11 +47,13 @@ const TeamInvites: React.FC<TeamInvitesProps> = ({ organization, userRole }) => 
 
       if (error) throw error;
 
-      // Map the data to the correct Invite type to ensure role compatibility
+      // Map the data to the correct Invite type to ensure both role and status compatibility
       const mappedInvites: Invite[] = (data || []).map(invite => ({
         ...invite,
         // Ensure the role matches the expected union type in the Invite interface
         role: mapDatabaseRoleToInviteRole(invite.role),
+        // Ensure the status matches the expected union type in the Invite interface
+        status: mapDatabaseStatusToInviteStatus(invite.status),
       }));
 
       setInvites(mappedInvites);
@@ -71,6 +73,16 @@ const TeamInvites: React.FC<TeamInvitesProps> = ({ organization, userRole }) => 
     // Default to member if we receive an unexpected role
     console.warn(`Unexpected role received from database: ${role}`);
     return "member";
+  };
+
+  // Helper function to ensure status matches expected type
+  const mapDatabaseStatusToInviteStatus = (status: string): "pending" | "accepted" | "declined" | "revoked" => {
+    if (status === "pending" || status === "accepted" || status === "declined" || status === "revoked") {
+      return status as "pending" | "accepted" | "declined" | "revoked";
+    }
+    // Default to pending if we receive an unexpected status
+    console.warn(`Unexpected status received from database: ${status}`);
+    return "pending";
   };
 
   const handleResendInvite = async (inviteId: string) => {

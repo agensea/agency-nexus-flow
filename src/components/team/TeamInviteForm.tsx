@@ -35,6 +35,30 @@ const formSchema = z.object({
 
 type FormValues = z.infer<typeof formSchema>;
 
+// Define simple interface for the invite query response
+interface ExistingInviteResponse {
+  data: { id: string } | null;
+  error: any;
+}
+
+// Define simple interface for the profile query response
+interface ProfileQueryResponse {
+  data: { id: string } | null;
+  error: any;
+}
+
+// Define simple interface for the member query response
+interface MemberQueryResponse {
+  data: { id: string; status: string } | null;
+  error: any;
+}
+
+// Define simple interface for the invite insertion response
+interface InviteInsertResponse {
+  data: { id: string } | null;
+  error: any;
+}
+
 const TeamInviteForm: React.FC<{ onSuccess?: () => void }> = ({ onSuccess }) => {
   const { organization } = useOrganization();
   const { user } = useAuth();
@@ -64,11 +88,15 @@ const TeamInviteForm: React.FC<{ onSuccess?: () => void }> = ({ onSuccess }) => 
         .eq("status", "pending")
         .maybeSingle();
 
-      if (existingInviteQuery.error && existingInviteQuery.error.code !== "PGRST116") {
-        throw existingInviteQuery.error;
+      // Define variables for clarity and to avoid deep type instantiation
+      const existingInviteData = existingInviteQuery.data;
+      const existingInviteError = existingInviteQuery.error;
+
+      if (existingInviteError && existingInviteError.code !== "PGRST116") {
+        throw existingInviteError;
       }
 
-      if (existingInviteQuery.data) {
+      if (existingInviteData) {
         toast.error("This email has already been invited");
         setLoading(false);
         return;
@@ -81,14 +109,18 @@ const TeamInviteForm: React.FC<{ onSuccess?: () => void }> = ({ onSuccess }) => 
         .eq("email", values.email)
         .maybeSingle();
 
-      if (profileQuery.error && profileQuery.error.code !== "PGRST116") {
-        throw profileQuery.error;
+      // Define variables for clarity
+      const profileData = profileQuery.data;
+      const profileError = profileQuery.error;
+
+      if (profileError && profileError.code !== "PGRST116") {
+        throw profileError;
       }
 
       // If user exists, check if they're already a team member
       let existingUser = null;
-      if (profileQuery.data) {
-        existingUser = { id: profileQuery.data.id };
+      if (profileData) {
+        existingUser = { id: profileData.id };
 
         const memberQuery = await supabase
           .from("team_members")
@@ -97,11 +129,15 @@ const TeamInviteForm: React.FC<{ onSuccess?: () => void }> = ({ onSuccess }) => 
           .eq("organization_id", organization.id)
           .maybeSingle();
 
-        if (memberQuery.error && memberQuery.error.code !== "PGRST116") {
-          throw memberQuery.error;
+        // Define variables for clarity
+        const memberData = memberQuery.data;
+        const memberError = memberQuery.error;
+
+        if (memberError && memberError.code !== "PGRST116") {
+          throw memberError;
         }
 
-        if (memberQuery.data && memberQuery.data.status === "active") {
+        if (memberData && memberData.status === "active") {
           toast.error("This user is already a team member");
           setLoading(false);
           return;
@@ -131,13 +167,17 @@ const TeamInviteForm: React.FC<{ onSuccess?: () => void }> = ({ onSuccess }) => 
         .select()
         .single();
 
-      if (inviteQuery.error) {
-        throw inviteQuery.error;
+      // Define variables for clarity
+      const insertedInvite = inviteQuery.data;
+      const insertError = inviteQuery.error;
+
+      if (insertError) {
+        throw insertError;
       }
 
       // Send the invite email
       const sendResponse = await supabase.functions.invoke("send-invite", {
-        body: { inviteId: inviteQuery.data.id },
+        body: { inviteId: insertedInvite.id },
       });
 
       if (sendResponse.error) {
