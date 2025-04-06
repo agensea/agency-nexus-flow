@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 import { Link, useLocation } from "react-router-dom";
@@ -117,22 +116,43 @@ export function Sidebar({ className, isCollapsed, ...props }: SidebarProps) {
 
           {/* Team Management link */}
           {organization && (
-            <Link
-              to="/organization/team"
-              className={cn(
-                "flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-all hover:bg-accent",
-                pathname === "/organization/team"
-                  ? "bg-accent text-accent-foreground"
-                  : "text-muted-foreground",
-                isCollapsed &&
-                  "flex h-10 w-10 shrink-0 items-center justify-center rounded-lg p-0"
+            <>
+              <Link
+                to="/organization/team"
+                className={cn(
+                  "flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-all hover:bg-accent",
+                  pathname === "/organization/team"
+                    ? "bg-accent text-accent-foreground"
+                    : "text-muted-foreground",
+                  isCollapsed &&
+                    "flex h-10 w-10 shrink-0 items-center justify-center rounded-lg p-0"
+                )}
+              >
+                <Users
+                  className={cn("h-5 w-5", isCollapsed ? "w-5 h-5" : "w-4 h-4")}
+                />
+                {!isCollapsed && <span>Team Management</span>}
+              </Link>
+              
+              {isAdmin && (
+                <Link
+                  to="/team/invite"
+                  className={cn(
+                    "flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-all hover:bg-accent",
+                    pathname === "/team/invite"
+                      ? "bg-accent text-accent-foreground"
+                      : "text-muted-foreground",
+                    isCollapsed &&
+                      "flex h-10 w-10 shrink-0 items-center justify-center rounded-lg p-0"
+                  )}
+                >
+                  <UserPlus
+                    className={cn("h-5 w-5", isCollapsed ? "w-5 h-5" : "w-4 h-4")}
+                  />
+                  {!isCollapsed && <span>Invite Team Member</span>}
+                </Link>
               )}
-            >
-              <UserPlus
-                className={cn("h-5 w-5", isCollapsed ? "w-5 h-5" : "w-4 h-4")}
-              />
-              {!isCollapsed && <span>Team</span>}
-            </Link>
+            </>
           )}
           
           <Link

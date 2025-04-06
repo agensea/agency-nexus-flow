@@ -55,7 +55,7 @@ const TeamInviteForm: React.FC<{ onSuccess?: () => void }> = ({ onSuccess }) => 
 
     setLoading(true);
     try {
-      // Check for existing pending invites - Fix type instantiation issue by simplifying query
+      // Check for existing pending invites
       const { data: existingInvites, error: existingInvitesError } = await supabase
         .from("invites")
         .select("id")
@@ -71,7 +71,7 @@ const TeamInviteForm: React.FC<{ onSuccess?: () => void }> = ({ onSuccess }) => 
         return;
       }
 
-      // Check if the user already exists
+      // Check if the user profile already exists
       const { data: profiles, error: profilesError } = await supabase
         .from("profiles")
         .select("id")
@@ -79,14 +79,16 @@ const TeamInviteForm: React.FC<{ onSuccess?: () => void }> = ({ onSuccess }) => 
 
       if (profilesError) throw profilesError;
 
+      let profileId = null;
+      
       if (profiles && profiles.length > 0) {
-        const existingUserId = profiles[0].id;
-
+        profileId = profiles[0].id;
+        
         // Check if the user is already a team member
         const { data: members, error: membersError } = await supabase
           .from("team_members")
           .select("id, status")
-          .eq("user_id", existingUserId)
+          .eq("profile_id", profileId)
           .eq("organization_id", organization.id);
 
         if (membersError) throw membersError;

@@ -1,6 +1,5 @@
 
 import React, { useState, useEffect } from "react";
-import { User } from "@/types";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { 
@@ -48,14 +47,16 @@ interface TeamMember {
   id: string;
   user_id: string;
   organization_id: string;
+  profile_id: string;
   role: string;
   status: string;
   joined_at: string;
-  profile?: {
+  profiles: {
+    id: string;
     name: string;
     avatar_url: string | null;
     department: string | null;
-    email?: string;
+    email: string;
   }
 }
 
@@ -84,32 +85,31 @@ const TeamMembers: React.FC<TeamMembersProps> = ({ organization, userRole }) => 
   const fetchTeamMembers = async () => {
     setLoading(true);
     try {
-      // Fetch team members with profile information
+      // Fetch team members with profile information using the new relationship
       const { data, error } = await supabase
         .from("team_members")
         .select(`
           *,
-          profile:profiles(name, avatar_url, department)
+          profiles(id, name, avatar_url, department, email)
         `)
         .eq("organization_id", organization.id)
         .eq("status", "active");
 
       if (error) throw error;
 
-      // Fix the type issue by properly mapping the data
-      const membersWithEmail = await Promise.all(
-        data.map(async (member: any) => {
-          return {
-            ...member,
-            profile: {
-              ...member.profile,
-              email: "" // We'll display what we can
-            }
-          };
-        })
-      );
+      // Properly map the data
+      const mappedMembers = data?.map((member: any) => ({
+        ...member,
+        profiles: member.profiles || { 
+          id: null,
+          name: "Unknown User", 
+          avatar_url: null, 
+          department: null,
+          email: "unknown@example.com" 
+        }
+      })) || [];
 
-      setMembers(membersWithEmail);
+      setMembers(mappedMembers);
     } catch (error) {
       console.error("Error fetching team members:", error);
       toast.error("Failed to load team members");
@@ -224,20 +224,20 @@ const TeamMembers: React.FC<TeamMembersProps> = ({ organization, userRole }) => 
                 <TableCell>
                   <div className="flex items-center gap-3">
                     <Avatar>
-                      <AvatarImage src={member.profile?.avatar_url || ""} />
+                      <AvatarImage src={member.profiles?.avatar_url || ""} />
                       <AvatarFallback>
-                        {getInitials(member.profile?.name || "User")}
+                        {getInitials(member.profiles?.name || "User")}
                       </AvatarFallback>
                     </Avatar>
                     <div>
-                      <p className="font-medium">{member.profile?.name || "Unknown"}</p>
+                      <p className="font-medium">{member.profiles?.name || "Unknown"}</p>
                       <p className="text-sm text-muted-foreground">
-                        {member.profile?.email || ""}
+                        {member.profiles?.email || ""}
                       </p>
                     </div>
                   </div>
                 </TableCell>
-                <TableCell>{member.profile?.department || "-"}</TableCell>
+                <TableCell>{member.profiles?.department || "-"}</TableCell>
                 <TableCell>
                   <div className="flex items-center">
                     {member.role === "owner" && (
@@ -312,7 +312,7 @@ const TeamMembers: React.FC<TeamMembersProps> = ({ organization, userRole }) => 
               <DialogHeader>
                 <DialogTitle>Remove Team Member</DialogTitle>
                 <DialogDescription>
-                  Are you sure you want to remove {memberToRemove?.profile?.name} from your organization? 
+                  Are you sure you want to remove {memberToRemove?.profiles?.name} from your organization? 
                   This action cannot be undone.
                 </DialogDescription>
               </DialogHeader>
@@ -339,7 +339,7 @@ const TeamMembers: React.FC<TeamMembersProps> = ({ organization, userRole }) => 
               <DialogHeader>
                 <DialogTitle>Change Role</DialogTitle>
                 <DialogDescription>
-                  Are you sure you want to change {memberToUpdate?.profile?.name}'s role from{" "}
+                  Are you sure you want to change {memberToUpdate?.profiles?.name}'s role from{" "}
                   {memberToUpdate?.role} to {newRole}?
                 </DialogDescription>
               </DialogHeader>

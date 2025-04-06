@@ -3,7 +3,6 @@ import React, { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { Invite } from "@/types";
 import { toast } from "sonner";
 import {
   Table,
@@ -16,6 +15,18 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Loader2 } from "lucide-react";
+
+interface Invite {
+  id: string;
+  email: string;
+  name: string | null;
+  department: string | null;
+  organization_id: string;
+  role: string;
+  status: string;
+  invited_at: string;
+  expires_at: string;
+}
 
 interface TeamInvitesProps {
   organization: any;
@@ -47,42 +58,13 @@ const TeamInvites: React.FC<TeamInvitesProps> = ({ organization, userRole }) => 
 
       if (error) throw error;
 
-      // Map the data to the correct Invite type to ensure both role and status compatibility
-      const mappedInvites: Invite[] = (data || []).map(invite => ({
-        ...invite,
-        // Ensure the role matches the expected union type in the Invite interface
-        role: mapDatabaseRoleToInviteRole(invite.role),
-        // Ensure the status matches the expected union type in the Invite interface
-        status: mapDatabaseStatusToInviteStatus(invite.status),
-      }));
-
-      setInvites(mappedInvites);
+      setInvites(data || []);
     } catch (error) {
       console.error("Error fetching invites:", error);
       toast.error("Failed to load invites");
     } finally {
       setLoading(false);
     }
-  };
-
-  // Helper function to ensure role matches expected type
-  const mapDatabaseRoleToInviteRole = (role: string): "admin" | "member" | "client" => {
-    if (role === "admin" || role === "member" || role === "client") {
-      return role as "admin" | "member" | "client";
-    }
-    // Default to member if we receive an unexpected role
-    console.warn(`Unexpected role received from database: ${role}`);
-    return "member";
-  };
-
-  // Helper function to ensure status matches expected type
-  const mapDatabaseStatusToInviteStatus = (status: string): "pending" | "accepted" | "declined" | "revoked" => {
-    if (status === "pending" || status === "accepted" || status === "declined" || status === "revoked") {
-      return status as "pending" | "accepted" | "declined" | "revoked";
-    }
-    // Default to pending if we receive an unexpected status
-    console.warn(`Unexpected status received from database: ${status}`);
-    return "pending";
   };
 
   const handleResendInvite = async (inviteId: string) => {

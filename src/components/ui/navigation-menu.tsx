@@ -1,3 +1,4 @@
+
 import * as React from "react"
 import * as NavigationMenuPrimitive from "@radix-ui/react-navigation-menu"
 import { cva } from "class-variance-authority"
@@ -132,7 +133,7 @@ NavigationMenuIndicator.displayName =
 // Nav Items
 const navItems = [
   { name: "Dashboard", href: "/dashboard" },
-  { name: "Team", href: "/team" },
+  { name: "Team", href: "/organization/team" },
   { name: "Invite Team Member", href: "/team/invite" },
 ]
 
@@ -166,4 +167,3 @@ export {
   NavigationMenuViewport,
   MainNavigation,
 }
-
