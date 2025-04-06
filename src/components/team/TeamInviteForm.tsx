@@ -55,48 +55,51 @@ const TeamInviteForm: React.FC<{ onSuccess?: () => void }> = ({ onSuccess }) => 
 
     setLoading(true);
     try {
-      // Check for existing pending invites - Using a different approach to avoid deep type instantiation
-      const existingInviteQuery = await supabase
+      // Check for existing pending invites using raw SQL approach to avoid type instantiation issues
+      const { data: existingInvites, error: existingInviteError } = await supabase
         .from("invites")
-        .select("id")
+        .select("*")
         .eq("email", values.email)
         .eq("organization_id", organization.id)
         .eq("status", "pending");
       
-      if (existingInviteQuery.error) {
-        throw existingInviteQuery.error;
+      if (existingInviteError) {
+        throw existingInviteError;
       }
 
-      if (existingInviteQuery.data && existingInviteQuery.data.length > 0) {
+      if (existingInvites && existingInvites.length > 0) {
         toast.error("This email has already been invited");
         setLoading(false);
         return;
       }
 
-      // Check if user already exists - Using a different approach to avoid deep type instantiation
-      const profileQuery = await supabase
+      // Check if user already exists 
+      const { data: profiles, error: profileError } = await supabase
         .from("profiles")
         .select("id")
         .eq("email", values.email);
       
-      if (profileQuery.error) {
-        throw profileQuery.error;
+      if (profileError) {
+        throw profileError;
       }
 
       // If user exists, check if they're already a team member
-      let existingUserId = profileQuery.data?.[0]?.id;
-      if (existingUserId) {
-        const memberQuery = await supabase
+      if (profiles && profiles.length > 0) {
+        const existingUserId = profiles[0].id;
+        
+        const { data: members, error: memberError } = await supabase
           .from("team_members")
           .select("id, status")
           .eq("user_id", existingUserId)
           .eq("organization_id", organization.id);
         
-        if (memberQuery.error) {
-          throw memberQuery.error;
+        if (memberError) {
+          throw memberError;
         }
 
-        if (memberQuery.data && memberQuery.data.length > 0 && memberQuery.data[0].status === "active") {
+        const activeMembers = members?.filter(member => member.status === "active") || [];
+
+        if (activeMembers.length > 0) {
           toast.error("This user is already a team member");
           setLoading(false);
           return;
@@ -120,27 +123,28 @@ const TeamInviteForm: React.FC<{ onSuccess?: () => void }> = ({ onSuccess }) => 
         expires_at: expiresAt.toISOString(),
       };
 
-      const inviteResult = await supabase
+      const { data: createdInvites, error: inviteError } = await supabase
         .from("invites")
         .insert(inviteData)
         .select();
       
-      if (inviteResult.error) {
-        throw inviteResult.error;
+      if (inviteError) {
+        throw inviteError;
       }
 
-      const createdInvite = inviteResult.data?.[0];
-      if (!createdInvite) {
+      if (!createdInvites || createdInvites.length === 0) {
         throw new Error("Failed to create invitation");
       }
 
+      const createdInvite = createdInvites[0];
+
       // Send the invite email
-      const sendResult = await supabase.functions.invoke("send-invite", {
+      const { error: sendError } = await supabase.functions.invoke("send-invite", {
         body: { inviteId: createdInvite.id },
       });
       
-      if (sendResult.error) {
-        throw sendResult.error;
+      if (sendError) {
+        throw sendError;
       }
 
       toast.success(`Invitation sent to ${values.email}`);
