@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { Organization, OrganizationSettings, TeamMember, Invite, Address } from "@/types";
 import { useAuth } from "./AuthContext";
@@ -220,12 +221,14 @@ export const OrganizationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       
       console.log("Organization created:", orgData);
       
+      // Set the user as the organization owner in team_members
+      const ownerRole = 'owner';
       const { error: memberError } = await supabase
         .from('team_members')
         .insert({
           user_id: user.id,
           organization_id: orgData.id,
-          role: 'owner',
+          role: ownerRole,
           invited_by: user.id,
           joined_at: new Date().toISOString(),
           status: 'active'
@@ -237,6 +240,19 @@ export const OrganizationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       }
 
       console.log("Team member created for organization owner");
+      
+      // Also update the user's profile to match this role
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .update({ role: ownerRole })
+        .eq('id', user.id);
+        
+      if (profileError) {
+        console.error("Error updating profile role:", profileError);
+        // Don't throw here, as this is a non-critical update
+      } else {
+        console.log("Profile role updated to match team member role");
+      }
       
       const { error: settingsError } = await supabase
         .from('organization_settings')
@@ -281,7 +297,7 @@ export const OrganizationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         id: user.id,
         userId: user.id,
         organizationId: newOrg.id,
-        role: 'owner',
+        role: ownerRole,
         invitedBy: user.id,
         invitedAt: new Date(),
         joinedAt: new Date(),

@@ -18,7 +18,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import ProfileAvatar from "./ProfileAvatar";
-import { format, parseISO } from "date-fns";
+import { format } from "date-fns";
 
 const profileFormSchema = z.object({
   name: z.string().min(2, { message: "Name must be at least 2 characters." }),
@@ -49,6 +49,7 @@ const ProfileForm = () => {
   const [saving, setSaving] = useState(false);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [role, setRole] = useState<string>("member");
+  const [organizationId, setOrganizationId] = useState<string | null>(null);
 
   const form = useForm<ProfileFormValues>({
     resolver: zodResolver(profileFormSchema),
@@ -66,19 +67,44 @@ const ProfileForm = () => {
       try {
         if (!user) return;
 
-        const { data, error } = await supabase
+        // Get profile data
+        const { data: profileData, error: profileError } = await supabase
           .from("profiles")
           .select("*")
           .eq("id", user.id)
           .single();
 
-        if (error) throw error;
+        if (profileError) throw profileError;
+
+        // Get team membership data
+        const { data: teamMemberData, error: teamMemberError } = await supabase
+          .from("team_members")
+          .select("role, organization_id")
+          .eq("user_id", user.id)
+          .eq("status", "active")
+          .maybeSingle();
+
+        // If team member data exists, use that role instead of the profile role
+        if (teamMemberData) {
+          setRole(teamMemberData.role);
+          setOrganizationId(teamMemberData.organization_id);
+          
+          // Update the profile role to match the team member role if they are different
+          if (profileData.role !== teamMemberData.role) {
+            await supabase
+              .from("profiles")
+              .update({ role: teamMemberData.role })
+              .eq("id", user.id);
+          }
+        } else {
+          setRole(profileData.role || "member");
+        }
 
         // Get user email from auth context since it might not be in the profiles table
         const userEmail = user.email || "";
 
-        if (data) {
-          const profile = data as Profile;
+        if (profileData) {
+          const profile = profileData as Profile;
           
           form.reset({
             name: profile.name || "",
@@ -90,7 +116,6 @@ const ProfileForm = () => {
             department: profile.department || "",
           });
           setAvatarUrl(profile.avatar_url);
-          setRole(profile.role || "member");
         }
       } catch (error) {
         console.error("Error fetching profile", error);
@@ -246,7 +271,9 @@ const ProfileForm = () => {
               <FormLabel>Role</FormLabel>
               <Input value={role} disabled readOnly className="bg-muted" />
               <p className="text-xs text-muted-foreground mt-1">
-                Your role can only be changed by an organization administrator.
+                {organizationId ? 
+                  "Your role is based on your organization membership." :
+                  "Your role can only be changed by an organization administrator."}
               </p>
             </FormItem>
           </div>
