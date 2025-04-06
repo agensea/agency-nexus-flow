@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { 
@@ -34,6 +33,8 @@ interface Invite {
   token: string;
   invited_at: string;
   expires_at: string;
+  created_at: string;
+  updated_at: string;
 }
 
 interface TeamInvitesProps {
@@ -64,7 +65,7 @@ const TeamInvites: React.FC<TeamInvitesProps> = ({ organization }) => {
         .order("invited_at", { ascending: false });
 
       if (error) throw error;
-      setInvites(data);
+      setInvites(data as Invite[]);
     } catch (error) {
       console.error("Error fetching invites:", error);
       toast.error("Failed to load invitations");
@@ -102,7 +103,6 @@ const TeamInvites: React.FC<TeamInvitesProps> = ({ organization }) => {
     
     setResending(true);
     try {
-      // Generate a new token and update expiration
       const newToken = crypto.randomUUID();
       const expiresAt = new Date();
       expiresAt.setDate(expiresAt.getDate() + 7); // 7 days from now
@@ -112,13 +112,12 @@ const TeamInvites: React.FC<TeamInvitesProps> = ({ organization }) => {
         .update({
           token: newToken,
           expires_at: expiresAt.toISOString(),
-          status: "pending" // Reset status if it was expired
+          status: "pending"
         })
         .eq("id", inviteToResend.id);
 
       if (error) throw error;
 
-      // Use edge function to send the invite email (to be implemented)
       const { error: sendError } = await supabase.functions.invoke('send-invite', {
         body: { 
           inviteId: inviteToResend.id,
@@ -250,7 +249,6 @@ const TeamInvites: React.FC<TeamInvitesProps> = ({ organization }) => {
         </TableBody>
       </Table>
 
-      {/* Revoke Invite Dialog */}
       <Dialog open={confirmRevokeOpen} onOpenChange={setConfirmRevokeOpen}>
         <DialogContent>
           <DialogHeader>
@@ -286,7 +284,6 @@ const TeamInvites: React.FC<TeamInvitesProps> = ({ organization }) => {
         </DialogContent>
       </Dialog>
 
-      {/* Resend Invite Dialog */}
       <Dialog open={confirmResendOpen} onOpenChange={setConfirmResendOpen}>
         <DialogContent>
           <DialogHeader>

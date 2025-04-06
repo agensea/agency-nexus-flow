@@ -37,7 +37,8 @@ import {
   UserCheck, 
   UserCog, 
   UserMinus, 
-  MoreVertical 
+  MoreVertical,
+  Loader2
 } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
@@ -111,11 +112,9 @@ const TeamMembers: React.FC<TeamMembersProps> = ({ organization }) => {
 
       if (error) throw error;
 
-      // Fetch emails for each user by fetching the auth.users table
-      // We'll get this data via another way since we can't directly query auth.users
+      // Fix the type issue by properly mapping the data
       const membersWithEmail = await Promise.all(
-        data.map(async (member) => {
-          // For now, we'll leave email empty and focus on the data we have
+        data.map(async (member: any) => {
           return {
             ...member,
             profile: {

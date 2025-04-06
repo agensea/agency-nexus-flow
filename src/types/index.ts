@@ -50,6 +50,8 @@ export interface TeamMember {
 export interface Invite {
   id: string;
   email: string;
+  name?: string | null;
+  department?: string | null;
   organizationId: string;
   role: 'admin' | 'member' | 'client';
   invitedBy: string;

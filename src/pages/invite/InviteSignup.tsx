@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useForm } from "react-hook-form";
@@ -19,6 +18,25 @@ import { supabase } from "@/integrations/supabase/client";
 import { Loader2, ArrowRight } from "lucide-react";
 import { toast } from "sonner";
 import { Helmet } from "react-helmet-async";
+
+interface InviteData {
+  id: string;
+  email: string;
+  name?: string | null;
+  department?: string | null;
+  organization_id: string;
+  role: string;
+  status: string;
+  token: string;
+  invited_at: string;
+  expires_at: string;
+  created_at: string;
+  updated_at: string;
+  organization: {
+    name: string;
+    logo?: string | null;
+  };
+}
 
 const formSchema = z.object({
   name: z.string().min(2, { message: "Name must be at least 2 characters" }),
@@ -43,7 +61,7 @@ const InviteSignup: React.FC = () => {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [signingUp, setSigningUp] = useState(false);
-  const [invite, setInvite] = useState<any | null>(null);
+  const [invite, setInvite] = useState<InviteData | null>(null);
   const [organization, setOrganization] = useState<any | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -94,9 +112,14 @@ const InviteSignup: React.FC = () => {
           return;
         }
 
-        setInvite(inviteData);
+        setInvite(inviteData as InviteData);
         setOrganization(inviteData.organization);
-        form.setValue("name", inviteData.name || "");
+        
+        // Set the default name from the invite if available
+        if (inviteData.name) {
+          form.setValue("name", inviteData.name);
+        }
+        
         form.setValue("email", inviteData.email);
 
         setLoading(false);
