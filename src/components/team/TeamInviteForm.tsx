@@ -1,6 +1,5 @@
-
 import React, { useState } from "react";
-import { useForm } from "react-hook-form";
+import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
@@ -55,7 +54,6 @@ const TeamInviteForm: React.FC<{ onSuccess?: () => void }> = ({ onSuccess }) => 
 
     setLoading(true);
     try {
-      // Check for existing pending invites
       const { data: existingInvites, error: existingInvitesError } = await supabase
         .from("invites")
         .select("id")
@@ -65,13 +63,12 @@ const TeamInviteForm: React.FC<{ onSuccess?: () => void }> = ({ onSuccess }) => 
 
       if (existingInvitesError) throw existingInvitesError;
 
-      if (existingInvites && existingInvites.length > 0) {
+      if (existingInvites?.length) {
         toast.error("This email has already been invited");
         setLoading(false);
         return;
       }
 
-      // Check if the user profile already exists
       const { data: profiles, error: profilesError } = await supabase
         .from("profiles")
         .select("id")
@@ -80,11 +77,10 @@ const TeamInviteForm: React.FC<{ onSuccess?: () => void }> = ({ onSuccess }) => 
       if (profilesError) throw profilesError;
 
       let profileId = null;
-      
-      if (profiles && profiles.length > 0) {
+
+      if (profiles?.length) {
         profileId = profiles[0].id;
-        
-        // Check if the user is already a team member
+
         const { data: members, error: membersError } = await supabase
           .from("team_members")
           .select("id, status")
@@ -93,13 +89,11 @@ const TeamInviteForm: React.FC<{ onSuccess?: () => void }> = ({ onSuccess }) => 
 
         if (membersError) throw membersError;
 
-        if (members && members.length > 0) {
-          const activeMembers = members.filter(m => m.status === "active");
-          if (activeMembers.length > 0) {
-            toast.error("This user is already a team member");
-            setLoading(false);
-            return;
-          }
+        const isAlreadyMember = members?.some((m) => m.status === "active");
+        if (isAlreadyMember) {
+          toast.error("This user is already a team member");
+          setLoading(false);
+          return;
         }
       }
 
@@ -125,12 +119,9 @@ const TeamInviteForm: React.FC<{ onSuccess?: () => void }> = ({ onSuccess }) => 
         .select();
 
       if (createInviteError) throw createInviteError;
-      
-      if (!createdInvites || createdInvites.length === 0) {
-        throw new Error("Failed to create invitation");
-      }
 
-      const createdInvite = createdInvites[0];
+      const createdInvite = createdInvites?.[0];
+      if (!createdInvite) throw new Error("Failed to create invitation");
 
       const { error: sendInviteError } = await supabase.functions.invoke("send-invite", {
         body: { inviteId: createdInvite.id },
@@ -140,7 +131,7 @@ const TeamInviteForm: React.FC<{ onSuccess?: () => void }> = ({ onSuccess }) => 
 
       toast.success(`Invitation sent to ${values.email}`);
       form.reset();
-      if (onSuccess) onSuccess();
+      onSuccess?.();
     } catch (error: any) {
       console.error("Error sending invite:", error);
       toast.error(error.message || "Failed to send invitation");
@@ -153,8 +144,8 @@ const TeamInviteForm: React.FC<{ onSuccess?: () => void }> = ({ onSuccess }) => 
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
         <FormField
-          control={form.control}
           name="name"
+          control={form.control}
           render={({ field }) => (
             <FormItem>
               <FormLabel>Name</FormLabel>
@@ -167,8 +158,8 @@ const TeamInviteForm: React.FC<{ onSuccess?: () => void }> = ({ onSuccess }) => 
         />
 
         <FormField
-          control={form.control}
           name="email"
+          control={form.control}
           render={({ field }) => (
             <FormItem>
               <FormLabel>Email</FormLabel>
@@ -186,8 +177,8 @@ const TeamInviteForm: React.FC<{ onSuccess?: () => void }> = ({ onSuccess }) => 
         />
 
         <FormField
-          control={form.control}
           name="department"
+          control={form.control}
           render={({ field }) => (
             <FormItem>
               <FormLabel>Department (Optional)</FormLabel>
@@ -200,12 +191,16 @@ const TeamInviteForm: React.FC<{ onSuccess?: () => void }> = ({ onSuccess }) => 
         />
 
         <FormField
-          control={form.control}
           name="role"
+          control={form.control}
           render={({ field }) => (
             <FormItem>
               <FormLabel>Role</FormLabel>
-              <Select onValueChange={field.onChange} defaultValue={field.value} disabled={loading}>
+              <Select
+                disabled={loading}
+                onValueChange={field.onChange}
+                value={field.value}
+              >
                 <FormControl>
                   <SelectTrigger>
                     <SelectValue placeholder="Select a role" />
