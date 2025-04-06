@@ -17,6 +17,7 @@ import ResetPassword from "./pages/auth/ResetPassword";
 
 // Main app pages
 import Dashboard from "./pages/Dashboard";
+import Profile from "./pages/Profile";
 import OrganizationSetup from "./pages/organization/Setup";
 import OrganizationSettings from "./pages/organization/Settings";
 import EnhancedOrganizationSettings from "./pages/organization/EnhancedSettings";
@@ -53,6 +54,9 @@ const App = () => (
                         <Route path="/auth/forgot-password" element={<ForgotPassword />} />
                         <Route path="/auth/verify" element={<EmailVerification />} />
                         <Route path="/auth/reset-password" element={<ResetPassword />} />
+                        
+                        {/* Profile route */}
+                        <Route path="/profile" element={<Profile />} />
                         
                         {/* Organization routes */}
                         <Route path="/organization/setup" element={<OrganizationSetup />} />
