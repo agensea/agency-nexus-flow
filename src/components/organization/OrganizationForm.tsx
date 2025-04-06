@@ -38,7 +38,11 @@ const OrganizationForm: React.FC = () => {
     try {
       await createOrganization(values.name);
       toast.success("Organization created successfully!");
-      navigate("/dashboard");
+      
+      // Short delay to ensure database operations complete
+      setTimeout(() => {
+        navigate("/dashboard");
+      }, 1000);
     } catch (error: any) {
       console.error("Organization creation error:", error);
       toast.error(error.message || "Failed to create organization. Please try again.");
