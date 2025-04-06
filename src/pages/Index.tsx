@@ -2,20 +2,26 @@
 import React, { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
+import { useOrganization } from "@/contexts/OrganizationContext";
 
 const Index: React.FC = () => {
-  const { user, loading } = useAuth();
+  const { user, loading: authLoading } = useAuth();
+  const { organization, loading: orgLoading } = useOrganization();
   const navigate = useNavigate();
 
   useEffect(() => {
-    if (!loading) {
-      if (user) {
-        navigate("/dashboard");
-      } else {
+    if (!authLoading) {
+      if (!user) {
         navigate("/auth/login");
+      } else if (!orgLoading) {
+        if (organization) {
+          navigate("/dashboard");
+        } else {
+          navigate("/organization/setup");
+        }
       }
     }
-  }, [user, loading, navigate]);
+  }, [user, authLoading, organization, orgLoading, navigate]);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background">

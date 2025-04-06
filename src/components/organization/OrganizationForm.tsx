@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { useOrganization } from "@/contexts/OrganizationContext";
+import { toast } from "sonner";
 
 const formSchema = z.object({
   name: z.string().min(2, { message: "Organization name must be at least 2 characters" }),
@@ -36,10 +37,11 @@ const OrganizationForm: React.FC = () => {
   const onSubmit = async (values: FormValues) => {
     try {
       await createOrganization(values.name);
+      toast.success("Organization created successfully!");
       navigate("/dashboard");
-    } catch (error) {
+    } catch (error: any) {
       console.error("Organization creation error:", error);
-      // Error is already handled in the context with toast
+      toast.error(error.message || "Failed to create organization. Please try again.");
     }
   };
 
