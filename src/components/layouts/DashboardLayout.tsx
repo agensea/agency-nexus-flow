@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
@@ -17,6 +16,7 @@ import {
   LogOut,
   User,
   ChevronDown,
+  Building2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -78,6 +78,11 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
       path: "/clients", 
       name: "Clients", 
       icon: <Users className="h-5 w-5" /> 
+    },
+    { 
+      path: "/organization-settings", 
+      name: "Organization Settings", 
+      icon: <Building2 className="h-5 w-5" /> 
     },
     { 
       path: "/settings", 
@@ -154,7 +159,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
           <div className="p-4 border-b border-border">
             <div className="flex items-center justify-between">
               <Link to="/dashboard" className="flex items-center space-x-2">
-                <h1 className="text-xl font-bold text-gradient">AgencyOS</h1>
+                <h1 className="text-xl font-bold">AgencyOS</h1>
               </Link>
               <Button 
                 variant="ghost" 

@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import DashboardLayout from "@/components/layouts/DashboardLayout";
@@ -15,14 +15,17 @@ const OrganizationSettings: React.FC = () => {
   const { user } = useAuth();
   const { organization, loading } = useOrganization();
   const navigate = useNavigate();
+  const location = useLocation();
   const [activeTab, setActiveTab] = useState("general");
 
   // Check if user is authenticated
   useEffect(() => {
     if (!user) {
+      // Store the intended path before redirecting
+      sessionStorage.setItem('intendedPath', location.pathname);
       navigate("/auth/login");
     }
-  }, [user, navigate]);
+  }, [user, navigate, location.pathname]);
 
   // Check if organization exists
   useEffect(() => {

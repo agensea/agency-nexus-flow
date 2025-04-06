@@ -19,6 +19,7 @@ import ResetPassword from "./pages/auth/ResetPassword";
 import Dashboard from "./pages/Dashboard";
 import OrganizationSetup from "./pages/organization/Setup";
 import OrganizationSettings from "./pages/organization/Settings";
+import EnhancedOrganizationSettings from "./pages/organization/EnhancedSettings";
 
 // Context providers
 import { AuthProvider } from "./contexts/AuthContext";
@@ -56,6 +57,7 @@ const App = () => (
                         {/* Organization routes */}
                         <Route path="/organization/setup" element={<OrganizationSetup />} />
                         <Route path="/organization/settings" element={<OrganizationSettings />} />
+                        <Route path="/organization-settings" element={<EnhancedOrganizationSettings />} />
                         
                         {/* Main app routes */}
                         <Route path="/dashboard" element={<Dashboard />} />

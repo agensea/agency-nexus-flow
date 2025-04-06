@@ -29,7 +29,15 @@ const Index: React.FC = () => {
         setIsRedirecting(true);
         navigate("/auth/login");
       } else if (refreshAttempted) {
-        if (organization) {
+        // Check if user is trying to access a specific route
+        const intendedPath = sessionStorage.getItem('intendedPath');
+        
+        if (intendedPath) {
+          console.log(`Found intended path: ${intendedPath}, redirecting`);
+          sessionStorage.removeItem('intendedPath');
+          setIsRedirecting(true);
+          navigate(intendedPath);
+        } else if (organization) {
           console.log("Organization found, redirecting to dashboard");
           setIsRedirecting(true);
           navigate("/dashboard");
