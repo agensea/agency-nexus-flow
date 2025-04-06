@@ -1,5 +1,5 @@
 
-import React from "react";
+import React, { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -21,9 +21,15 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useOrganization } from "@/contexts/OrganizationContext";
+import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
+import { Loader2 } from "lucide-react";
+import { toast } from "sonner";
 
 const formSchema = z.object({
+  name: z.string().min(2, { message: "Name must be at least 2 characters" }),
   email: z.string().email({ message: "Please enter a valid email address" }),
+  department: z.string().optional(),
   role: z.enum(["admin", "member"], {
     required_error: "Please select a role",
   }),
@@ -32,30 +38,130 @@ const formSchema = z.object({
 type FormValues = z.infer<typeof formSchema>;
 
 const TeamInviteForm: React.FC<{ onSuccess?: () => void }> = ({ onSuccess }) => {
-  const { inviteTeamMember, loading } = useOrganization();
+  const { organization } = useOrganization();
+  const { user } = useAuth();
+  const [loading, setLoading] = useState(false);
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
+      name: "",
       email: "",
+      department: "",
       role: "member",
     },
   });
 
   const onSubmit = async (values: FormValues) => {
+    if (!organization || !user) return;
+    
+    setLoading(true);
     try {
-      await inviteTeamMember(values.email, values.role);
+      // Check if user is already invited
+      const { data: existingInvite, error: checkError } = await supabase
+        .from("invites")
+        .select("*")
+        .eq("email", values.email)
+        .eq("organization_id", organization.id)
+        .eq("status", "pending")
+        .maybeSingle();
+        
+      if (checkError && checkError.code !== "PGRST116") throw checkError;
+      
+      if (existingInvite) {
+        toast.error("This email has already been invited");
+        return;
+      }
+      
+      // Check if user is already a member
+      const { data: existingUser, error: checkUserError } = await supabase
+        .from("profiles")
+        .select("id")
+        .eq("email", values.email)
+        .maybeSingle();
+        
+      if (checkUserError && checkUserError.code !== "PGRST116") throw checkUserError;
+      
+      if (existingUser) {
+        const { data: existingMember, error: checkMemberError } = await supabase
+          .from("team_members")
+          .select("*")
+          .eq("user_id", existingUser.id)
+          .eq("organization_id", organization.id)
+          .maybeSingle();
+          
+        if (checkMemberError && checkMemberError.code !== "PGRST116") throw checkMemberError;
+        
+        if (existingMember && existingMember.status === "active") {
+          toast.error("This user is already a team member");
+          return;
+        }
+      }
+      
+      // Generate token and expiry date
+      const token = crypto.randomUUID();
+      const expiresAt = new Date();
+      expiresAt.setDate(expiresAt.getDate() + 7); // 7 days from now
+      
+      // Create the invite
+      const { data: inviteData, error: inviteError } = await supabase
+        .from("invites")
+        .insert({
+          email: values.email,
+          name: values.name,
+          department: values.department || null,
+          organization_id: organization.id,
+          role: values.role,
+          invited_by: user.id,
+          status: "pending",
+          token,
+          expires_at: expiresAt.toISOString()
+        })
+        .select()
+        .single();
+        
+      if (inviteError) throw inviteError;
+      
+      // Send invite email via edge function (to be implemented)
+      const { error: sendError } = await supabase.functions.invoke('send-invite', {
+        body: { inviteId: inviteData.id }
+      });
+      
+      if (sendError) throw sendError;
+      
+      toast.success(`Invitation sent to ${values.email}`);
       form.reset();
+      
       if (onSuccess) onSuccess();
-    } catch (error) {
-      console.error("Invite error:", error);
-      // Error is already handled in the context with toast
+    } catch (error: any) {
+      console.error("Error sending invite:", error);
+      toast.error(error.message || "Failed to send invitation");
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+        <FormField
+          control={form.control}
+          name="name"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Name</FormLabel>
+              <FormControl>
+                <Input 
+                  placeholder="Enter full name" 
+                  {...field} 
+                  disabled={loading}
+                />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        
         <FormField
           control={form.control}
           name="email"
@@ -66,6 +172,24 @@ const TeamInviteForm: React.FC<{ onSuccess?: () => void }> = ({ onSuccess }) => 
                 <Input 
                   type="email" 
                   placeholder="teammate@example.com" 
+                  {...field} 
+                  disabled={loading}
+                />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        
+        <FormField
+          control={form.control}
+          name="department"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Department (Optional)</FormLabel>
+              <FormControl>
+                <Input 
+                  placeholder="e.g. Marketing" 
                   {...field} 
                   disabled={loading}
                 />
@@ -107,7 +231,14 @@ const TeamInviteForm: React.FC<{ onSuccess?: () => void }> = ({ onSuccess }) => 
             className="w-full" 
             disabled={loading}
           >
-            {loading ? "Sending Invite..." : "Send Invite"}
+            {loading ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Sending Invite...
+              </>
+            ) : (
+              "Send Invite"
+            )}
           </Button>
         </div>
       </form>

@@ -22,6 +22,8 @@ import Profile from "./pages/Profile";
 import OrganizationSetup from "./pages/organization/Setup";
 import OrganizationSettings from "./pages/organization/Settings";
 import EnhancedOrganizationSettings from "./pages/organization/EnhancedSettings";
+import TeamManagementPage from "./pages/organization/Team";
+import InviteSignup from "./pages/invite/InviteSignup";
 
 // Context providers
 import { AuthProvider } from "./contexts/AuthContext";
@@ -63,7 +65,11 @@ const App = () => (
                           {/* Organization routes */}
                           <Route path="/organization/setup" element={<OrganizationSetup />} />
                           <Route path="/organization/settings" element={<OrganizationSettings />} />
+                          <Route path="/organization/team" element={<TeamManagementPage />} />
                           <Route path="/organization-settings" element={<EnhancedOrganizationSettings />} />
+                          
+                          {/* Invite routes */}
+                          <Route path="/invite/:token" element={<InviteSignup />} />
                           
                           {/* Main app routes */}
                           <Route path="/dashboard" element={<Dashboard />} />
