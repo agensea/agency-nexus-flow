@@ -71,6 +71,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         name,
         role: "admin" as const,
         createdAt: new Date(),
+        avatar: undefined, // Add avatar property which was missing
       };
 
       // In a real app, we would make an API call here

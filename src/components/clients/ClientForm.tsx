@@ -1,4 +1,3 @@
-
 import React from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -75,9 +74,30 @@ const ClientForm: React.FC<ClientFormProps> = ({ client, onSuccess }) => {
   const onSubmit = async (values: FormValues) => {
     try {
       if (isEditMode && client) {
-        await updateClient(client.id, values);
+        await updateClient(client.id, {
+          ...values,
+          address: {
+            street: values.address.street,
+            city: values.address.city,
+            state: values.address.state,
+            zipCode: values.address.zipCode,
+            country: values.address.country,
+          }
+        });
       } else {
-        await createClient(values);
+        await createClient({
+          ...values,
+          email: values.email,
+          name: values.name,
+          status: values.status,
+          address: {
+            street: values.address.street,
+            city: values.address.city,
+            state: values.address.state,
+            zipCode: values.address.zipCode,
+            country: values.address.country,
+          }
+        });
       }
       
       if (onSuccess) onSuccess();

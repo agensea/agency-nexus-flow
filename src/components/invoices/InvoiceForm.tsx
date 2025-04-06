@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -96,35 +95,28 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ invoice, onSuccess }) => {
     name: "items",
   });
 
-  // Calculate item amount when quantity or unit price changes
   const calculateItemAmount = (index: number) => {
     const items = form.getValues("items");
     const item = items[index];
     const amount = Number(item.quantity) * Number(item.unitPrice);
     form.setValue(`items.${index}.amount`, amount);
     
-    // Recalculate totals
     calculateTotals();
   };
 
-  // Calculate all totals
   const calculateTotals = () => {
     const items = form.getValues("items");
     const discount = Number(form.getValues("discount") || 0);
     const taxRate = Number(form.getValues("taxRate") || 0);
     
-    // Calculate subtotal
     const calculatedSubTotal = items.reduce((total, item) => {
       return total + Number(item.amount || 0);
     }, 0);
     
-    // Apply discount
     const discountedSubTotal = calculatedSubTotal - discount;
     
-    // Calculate tax
     const calculatedTaxAmount = (discountedSubTotal * taxRate) / 100;
     
-    // Calculate total
     const calculatedTotal = discountedSubTotal + calculatedTaxAmount;
     
     setSubTotal(calculatedSubTotal);
@@ -143,11 +135,27 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ invoice, onSuccess }) => {
 
   const onSubmit = async (values: FormValues) => {
     try {
+      const processedItems: InvoiceItem[] = values.items.map(item => ({
+        id: item.id || `item_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
+        description: item.description,
+        quantity: item.quantity,
+        unitPrice: item.unitPrice,
+        amount: item.amount
+      }));
+
       const invoiceData = {
-        ...values,
+        clientId: values.clientId,
+        status: values.status,
+        issueDate: values.issueDate,
+        dueDate: values.dueDate,
+        items: processedItems,
         subTotal,
         taxAmount,
         total,
+        notes: values.notes,
+        terms: values.terms,
+        taxRate: values.taxRate,
+        discount: values.discount
       };
 
       if (isEditMode && invoice) {
@@ -159,7 +167,6 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ invoice, onSuccess }) => {
       if (onSuccess) onSuccess();
     } catch (error) {
       console.error("Invoice submission error:", error);
-      // Error is already handled in the context with toast
     }
   };
 

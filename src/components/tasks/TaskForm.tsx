@@ -1,4 +1,3 @@
-
 import React from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -78,6 +77,9 @@ const TaskForm: React.FC<TaskFormProps> = ({ task, onSuccess }) => {
     try {
       const taskData = {
         ...values,
+        title: values.title,
+        status: values.status,
+        priority: values.priority,
         tags: values.tags ? values.tags.split(",").map(tag => tag.trim()) : [],
       };
 
