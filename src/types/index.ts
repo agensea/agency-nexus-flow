@@ -1,4 +1,3 @@
-
 // User types
 export interface User {
   id: string;
@@ -50,15 +49,24 @@ export interface TeamMember {
 export interface Invite {
   id: string;
   email: string;
-  name?: string | null;
-  department?: string | null;
-  organizationId: string;
+  name: string | null;
+  department: string | null;
+  organization_id: string;
   role: 'admin' | 'member' | 'client';
-  invitedBy: string;
-  invitedAt: Date;
-  status: 'pending' | 'accepted' | 'declined';
+  invited_by: string;
+  invited_at: string;
+  status: 'pending' | 'accepted' | 'declined' | 'revoked';
   token: string;
-  expiresAt: Date;
+  expires_at: string;
+  created_at: string;
+  updated_at: string;
+  organization?: {
+    name: string;
+    logo?: string | null;
+  };
+  inviter?: {
+    name: string;
+  };
 }
 
 // Task types

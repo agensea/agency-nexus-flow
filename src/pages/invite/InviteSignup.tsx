@@ -18,23 +18,15 @@ import { supabase } from "@/integrations/supabase/client";
 import { Loader2, ArrowRight } from "lucide-react";
 import { toast } from "sonner";
 import { Helmet } from "react-helmet-async";
+import { Invite } from "@/types";
 
-interface InviteData {
-  id: string;
-  email: string;
-  name?: string | null;
-  department?: string | null;
-  organization_id: string;
-  role: string;
-  status: string;
-  token: string;
-  invited_at: string;
-  expires_at: string;
-  created_at: string;
-  updated_at: string;
+interface InviteData extends Invite {
   organization: {
     name: string;
     logo?: string | null;
+  };
+  inviter?: {
+    name: string;
   };
 }
 
@@ -85,10 +77,9 @@ const InviteSignup: React.FC = () => {
       }
 
       try {
-        // Fetch the invite
         const { data: inviteData, error: inviteError } = await supabase
           .from("invites")
-          .select("*, organization:organizations(name, logo)")
+          .select("*, organization:organizations(name, logo), inviter:profiles(name)")
           .eq("token", token)
           .single();
 
@@ -98,29 +89,30 @@ const InviteSignup: React.FC = () => {
           return;
         }
 
-        if (inviteData.status !== "pending") {
-          setError(`This invitation has already been ${inviteData.status}`);
+        const typedInvite = inviteData as unknown as InviteData;
+
+        if (typedInvite.status !== "pending") {
+          setError(`This invitation has already been ${typedInvite.status}`);
           setLoading(false);
           return;
         }
 
         const now = new Date();
-        const expiryDate = new Date(inviteData.expires_at);
+        const expiryDate = new Date(typedInvite.expires_at);
         if (now > expiryDate) {
           setError("This invitation has expired");
           setLoading(false);
           return;
         }
 
-        setInvite(inviteData as InviteData);
-        setOrganization(inviteData.organization);
+        setInvite(typedInvite);
+        setOrganization(typedInvite.organization);
         
-        // Set the default name from the invite if available
-        if (inviteData.name) {
-          form.setValue("name", inviteData.name);
+        if (typedInvite.name) {
+          form.setValue("name", typedInvite.name);
         }
         
-        form.setValue("email", inviteData.email);
+        form.setValue("email", typedInvite.email);
 
         setLoading(false);
       } catch (error) {
@@ -138,20 +130,16 @@ const InviteSignup: React.FC = () => {
 
     setSigningUp(true);
     try {
-      // Check if user already exists
       const { data: userData, error: userError } = await supabase.auth.signInWithPassword({
         email: invite.email,
         password: values.password,
       });
 
-      // If user exists and can sign in with provided credentials
       if (userData.user) {
-        // Accept the invitation
         await acceptInvite(userData.user.id);
         return;
       }
 
-      // If user doesn't exist, create a new account
       const { data: signupData, error: signupError } = await supabase.auth.signUp({
         email: invite.email,
         password: values.password,
@@ -167,7 +155,6 @@ const InviteSignup: React.FC = () => {
       if (signupError) throw signupError;
 
       if (signupData.user) {
-        // Accept the invitation
         await acceptInvite(signupData.user.id);
       } else {
         toast.info("Please check your email for verification link");
@@ -182,36 +169,33 @@ const InviteSignup: React.FC = () => {
 
   const acceptInvite = async (userId: string) => {
     try {
-      // Update the invite status
       const { error: updateInviteError } = await supabase
         .from("invites")
         .update({ status: "accepted" })
-        .eq("id", invite.id);
+        .eq("id", invite!.id);
 
       if (updateInviteError) throw updateInviteError;
 
-      // Create team member entry
       const { error: createMemberError } = await supabase
         .from("team_members")
         .insert({
           user_id: userId,
-          organization_id: invite.organization_id,
-          role: invite.role,
-          invited_by: invite.invited_by,
+          organization_id: invite!.organization_id,
+          role: invite!.role,
+          invited_by: invite!.invited_by,
           joined_at: new Date().toISOString(),
           status: "active"
         });
 
       if (createMemberError) throw createMemberError;
 
-      // Update the user's profile
       const { error: updateProfileError } = await supabase
         .from("profiles")
         .update({
           name: form.getValues().name,
           phone: form.getValues().phone || null,
-          department: invite.department || null,
-          role: invite.role
+          department: invite!.department || null,
+          role: invite!.role
         })
         .eq("id", userId);
 
@@ -219,7 +203,6 @@ const InviteSignup: React.FC = () => {
 
       toast.success("You've successfully joined the organization!");
       
-      // Redirect to dashboard
       navigate("/dashboard");
     } catch (error: any) {
       console.error("Error accepting invite:", error);

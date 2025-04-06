@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -26,16 +25,11 @@ import { supabase } from "@/integrations/supabase/client";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
-// Define a type for roles to avoid the deep instantiation error
-type UserRole = "admin" | "member";
-
 const formSchema = z.object({
   name: z.string().min(2, { message: "Name must be at least 2 characters" }),
   email: z.string().email({ message: "Please enter a valid email address" }),
   department: z.string().optional(),
-  role: z.enum(["admin", "member"] as const, {
-    required_error: "Please select a role",
-  }),
+  role: z.enum(["admin", "member"]),
 });
 
 type FormValues = z.infer<typeof formSchema>;
@@ -125,7 +119,7 @@ const TeamInviteForm: React.FC<{ onSuccess?: () => void }> = ({ onSuccess }) => 
         
       if (inviteError) throw inviteError;
       
-      // Send invite email via edge function (to be implemented)
+      // Send invite email via edge function
       const { error: sendError } = await supabase.functions.invoke('send-invite', {
         body: { inviteId: inviteData.id }
       });

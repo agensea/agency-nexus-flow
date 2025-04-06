@@ -21,21 +21,7 @@ import {
 import { toast } from "sonner";
 import { Loader2, RefreshCw, Send, X } from "lucide-react";
 import { format, isPast } from "date-fns";
-
-interface Invite {
-  id: string;
-  email: string;
-  name: string | null;
-  department: string | null;
-  organization_id: string;
-  role: string;
-  status: string;
-  token: string;
-  invited_at: string;
-  expires_at: string;
-  created_at: string;
-  updated_at: string;
-}
+import { Invite } from "@/types";
 
 interface TeamInvitesProps {
   organization: any;
@@ -65,7 +51,7 @@ const TeamInvites: React.FC<TeamInvitesProps> = ({ organization }) => {
         .order("invited_at", { ascending: false });
 
       if (error) throw error;
-      setInvites(data as Invite[]);
+      setInvites(data as unknown as Invite[]);
     } catch (error) {
       console.error("Error fetching invites:", error);
       toast.error("Failed to load invitations");

@@ -79,7 +79,7 @@ serve(async (req) => {
       subject: `You've been invited to join ${invite.organization.name}`,
       inviteUrl: inviteUrl,
       organizationName: invite.organization.name,
-      inviterName: invite.inviter.name,
+      inviterName: invite.inviter?.name || "Someone",
       recipientName: invite.name || "", // Include the recipient's name if available
       department: invite.department || "", // Include the department if available
     });
