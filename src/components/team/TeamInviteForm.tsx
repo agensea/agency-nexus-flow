@@ -1,3 +1,4 @@
+
 import React, { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -54,40 +55,46 @@ const TeamInviteForm: React.FC<{ onSuccess?: () => void }> = ({ onSuccess }) => 
 
     setLoading(true);
     try {
-      const { data: existingInvites, error: existingInviteError } = await supabase
+      // Check for existing pending invites
+      const existingInvitesQuery = await supabase
         .from("invites")
         .select("*")
         .eq("email", values.email)
         .eq("organization_id", organization.id)
         .eq("status", "pending");
 
-      if (existingInviteError) throw existingInviteError;
+      if (existingInvitesQuery.error) throw existingInvitesQuery.error;
 
+      const existingInvites = existingInvitesQuery.data;
       if (existingInvites && existingInvites.length > 0) {
         toast.error("This email has already been invited");
         setLoading(false);
         return;
       }
 
-      const { data: profiles, error: profileError } = await supabase
+      // Check if the user already exists
+      const profilesQuery = await supabase
         .from("profiles")
         .select("id")
         .eq("email", values.email);
 
-      if (profileError) throw profileError;
+      if (profilesQuery.error) throw profilesQuery.error;
 
+      const profiles = profilesQuery.data;
       if (profiles && profiles.length > 0) {
         const existingUserId = profiles[0].id;
 
-        const { data: members, error: memberError } = await supabase
+        // Check if the user is already a team member
+        const membersQuery = await supabase
           .from("team_members")
           .select("id, status")
           .eq("user_id", existingUserId)
           .eq("organization_id", organization.id);
 
-        if (memberError) throw memberError;
+        if (membersQuery.error) throw membersQuery.error;
 
-        const activeMembers = members?.filter(m => m.status === "active") || [];
+        const members = membersQuery.data;
+        const activeMembers = members.filter(m => m.status === "active") || [];
         if (activeMembers.length > 0) {
           toast.error("This user is already a team member");
           setLoading(false);
@@ -111,23 +118,25 @@ const TeamInviteForm: React.FC<{ onSuccess?: () => void }> = ({ onSuccess }) => 
         expires_at: expiresAt.toISOString(),
       };
 
-      const { data: createdInvites, error: inviteError } = await supabase
+      const createInviteQuery = await supabase
         .from("invites")
         .insert(inviteData)
         .select();
 
-      if (inviteError) throw inviteError;
+      if (createInviteQuery.error) throw createInviteQuery.error;
+      
+      const createdInvites = createInviteQuery.data;
       if (!createdInvites || createdInvites.length === 0) {
         throw new Error("Failed to create invitation");
       }
 
       const createdInvite = createdInvites[0];
 
-      const { error: sendError } = await supabase.functions.invoke("send-invite", {
+      const sendInviteQuery = await supabase.functions.invoke("send-invite", {
         body: { inviteId: createdInvite.id },
       });
 
-      if (sendError) throw sendError;
+      if (sendInviteQuery.error) throw sendInviteQuery.error;
 
       toast.success(`Invitation sent to ${values.email}`);
       form.reset();

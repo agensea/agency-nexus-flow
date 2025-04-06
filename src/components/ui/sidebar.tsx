@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 import { Link, useLocation } from "react-router-dom";
@@ -14,6 +15,7 @@ import {
   FileText,
   User,
   LogOut,
+  Building2,
 } from "lucide-react";
 
 interface SidebarProps extends React.HTMLAttributes<HTMLDivElement> {
@@ -113,7 +115,7 @@ export function Sidebar({ className, isCollapsed, ...props }: SidebarProps) {
             {!isCollapsed && <span>Dashboard</span>}
           </Link>
 
-          {/* Show organization/team for all users who are part of an organization */}
+          {/* Team Management link */}
           {organization && (
             <Link
               to="/organization/team"
@@ -129,7 +131,7 @@ export function Sidebar({ className, isCollapsed, ...props }: SidebarProps) {
               <UserPlus
                 className={cn("h-5 w-5", isCollapsed ? "w-5 h-5" : "w-4 h-4")}
               />
-              {!isCollapsed && <span>Team Management</span>}
+              {!isCollapsed && <span>Team</span>}
             </Link>
           )}
           
@@ -200,6 +202,26 @@ export function Sidebar({ className, isCollapsed, ...props }: SidebarProps) {
                 className={cn("h-5 w-5", isCollapsed ? "w-5 h-5" : "w-4 h-4")}
               />
               {!isCollapsed && <span>Settings</span>}
+            </Link>
+          )}
+
+          {/* Organization settings with Building icon */}
+          {isAdmin && (
+            <Link
+              to="/organization-settings"
+              className={cn(
+                "flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-all hover:bg-accent",
+                pathname === "/organization-settings"
+                  ? "bg-accent text-accent-foreground"
+                  : "text-muted-foreground",
+                isCollapsed &&
+                  "flex h-10 w-10 shrink-0 items-center justify-center rounded-lg p-0"
+              )}
+            >
+              <Building2
+                className={cn("h-5 w-5", isCollapsed ? "w-5 h-5" : "w-4 h-4")}
+              />
+              {!isCollapsed && <span>Organization</span>}
             </Link>
           )}
         </nav>

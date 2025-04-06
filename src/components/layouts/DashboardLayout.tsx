@@ -1,3 +1,4 @@
+
 import React, { useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
@@ -17,6 +18,7 @@ import {
   User,
   ChevronDown,
   Building2,
+  UserPlus,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -58,6 +60,11 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
       path: "/dashboard", 
       name: "Dashboard", 
       icon: <LayoutDashboard className="h-5 w-5" /> 
+    },
+    { 
+      path: "/organization/team", 
+      name: "Team Management", 
+      icon: <UserPlus className="h-5 w-5" /> 
     },
     { 
       path: "/tasks", 
