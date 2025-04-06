@@ -1,5 +1,5 @@
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -53,14 +53,53 @@ import {
   ArrowUpDown 
 } from "lucide-react";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
+import { User } from "@/types";
 
 const OrganizationTeamMembers: React.FC = () => {
   const { user } = useAuth();
-  const { members, invites, inviteTeamMember, revokeInvite, removeMember, updateMemberRole, loading } = useOrganization();
+  const { organization, members, invites, inviteTeamMember, revokeInvite, removeMember, updateMemberRole, loading } = useOrganization();
   const [isInviteOpen, setIsInviteOpen] = useState(false);
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState<"admin" | "member">("member");
   const [memberToRemove, setMemberToRemove] = useState<string | null>(null);
+  const [memberProfiles, setMemberProfiles] = useState<Record<string, User>>({});
+  
+  // Fetch user profiles for team members
+  useEffect(() => {
+    const fetchUserProfiles = async () => {
+      if (!members.length) return;
+      
+      const userIds = members.map(member => member.userId);
+      
+      try {
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('id, name, avatar_url')
+          .in('id', userIds);
+          
+        if (error) throw error;
+        
+        const profiles: Record<string, User> = {};
+        data.forEach(profile => {
+          profiles[profile.id] = {
+            id: profile.id,
+            name: profile.name,
+            avatar: profile.avatar_url,
+            email: '', // We don't have access to email from profiles table
+            role: 'member', // Default role
+            createdAt: new Date(),
+          };
+        });
+        
+        setMemberProfiles(profiles);
+      } catch (error) {
+        console.error('Error fetching user profiles:', error);
+      }
+    };
+    
+    fetchUserProfiles();
+  }, [members]);
   
   const handleInvite = async () => {
     if (!inviteEmail) {
@@ -102,12 +141,16 @@ const OrganizationTeamMembers: React.FC = () => {
     }
   };
   
-  const getInitials = (name: string) => {
-    return name
-      .split(" ")
-      .map((n) => n[0])
-      .join("")
-      .toUpperCase();
+  const getInitials = (userId: string) => {
+    const profile = memberProfiles[userId];
+    if (profile && profile.name) {
+      return profile.name
+        .split(" ")
+        .map((n) => n[0])
+        .join("")
+        .toUpperCase();
+    }
+    return userId.substring(0, 2).toUpperCase();
   };
   
   return (
@@ -221,12 +264,13 @@ const OrganizationTeamMembers: React.FC = () => {
                   <TableCell>
                     <div className="flex items-center space-x-3">
                       <Avatar>
+                        <AvatarImage src={memberProfiles[member.userId]?.avatar} />
                         <AvatarFallback>{getInitials(member.userId)}</AvatarFallback>
                       </Avatar>
                       <div>
-                        <p className="font-medium">{member.userId}</p>
+                        <p className="font-medium">{memberProfiles[member.userId]?.name || member.userId}</p>
                         <p className="text-xs text-muted-foreground">
-                          Joined {new Date(member.joinedAt).toLocaleDateString()}
+                          Joined {new Date(member.joinedAt || member.invitedAt).toLocaleDateString()}
                         </p>
                       </div>
                     </div>

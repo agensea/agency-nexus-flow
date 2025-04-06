@@ -9,6 +9,180 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      invites: {
+        Row: {
+          created_at: string
+          email: string
+          expires_at: string
+          id: string
+          invited_at: string
+          invited_by: string
+          organization_id: string
+          role: string
+          status: string
+          token: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          email: string
+          expires_at: string
+          id?: string
+          invited_at?: string
+          invited_by: string
+          organization_id: string
+          role: string
+          status: string
+          token: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          expires_at?: string
+          id?: string
+          invited_at?: string
+          invited_by?: string
+          organization_id?: string
+          role?: string
+          status?: string
+          token?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "invites_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      organization_addresses: {
+        Row: {
+          city: string
+          country: string
+          created_at: string
+          id: string
+          organization_id: string
+          state: string
+          street: string
+          updated_at: string
+          zip_code: string
+        }
+        Insert: {
+          city: string
+          country: string
+          created_at?: string
+          id?: string
+          organization_id: string
+          state: string
+          street: string
+          updated_at?: string
+          zip_code: string
+        }
+        Update: {
+          city?: string
+          country?: string
+          created_at?: string
+          id?: string
+          organization_id?: string
+          state?: string
+          street?: string
+          updated_at?: string
+          zip_code?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "organization_addresses_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      organization_settings: {
+        Row: {
+          allow_client_invites: boolean
+          allow_team_invites: boolean
+          color: string
+          created_at: string
+          default_task_view: string
+          id: string
+          organization_id: string
+          updated_at: string
+        }
+        Insert: {
+          allow_client_invites?: boolean
+          allow_team_invites?: boolean
+          color?: string
+          created_at?: string
+          default_task_view?: string
+          id?: string
+          organization_id: string
+          updated_at?: string
+        }
+        Update: {
+          allow_client_invites?: boolean
+          allow_team_invites?: boolean
+          color?: string
+          created_at?: string
+          default_task_view?: string
+          id?: string
+          organization_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "organization_settings_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: true
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      organizations: {
+        Row: {
+          created_at: string
+          created_by_id: string
+          currency: string | null
+          email: string | null
+          id: string
+          logo: string | null
+          name: string
+          phone: string | null
+          tax_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by_id: string
+          currency?: string | null
+          email?: string | null
+          id?: string
+          logo?: string | null
+          name: string
+          phone?: string | null
+          tax_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by_id?: string
+          currency?: string | null
+          email?: string | null
+          id?: string
+          logo?: string | null
+          name?: string
+          phone?: string | null
+          tax_id?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -35,6 +209,53 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      team_members: {
+        Row: {
+          created_at: string
+          id: string
+          invited_at: string
+          invited_by: string
+          joined_at: string | null
+          organization_id: string
+          role: string
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          invited_at?: string
+          invited_by: string
+          joined_at?: string | null
+          organization_id: string
+          role: string
+          status: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          invited_at?: string
+          invited_by?: string
+          joined_at?: string | null
+          organization_id?: string
+          role?: string
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "team_members_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {

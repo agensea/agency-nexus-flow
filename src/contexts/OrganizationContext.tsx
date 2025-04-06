@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { Organization, OrganizationSettings, TeamMember, Invite, Address } from "@/types";
 import { useAuth } from "./AuthContext";
@@ -21,40 +22,6 @@ interface OrganizationContextType {
 
 const OrganizationContext = createContext<OrganizationContextType | null>(null);
 
-// Mock organization data
-const mockOrganizationSettings: OrganizationSettings = {
-  allowClientInvites: true,
-  allowTeamInvites: true,
-  defaultTaskView: "board",
-  color: "#6366f1",
-};
-
-const mockOrganization: Organization = {
-  id: "org1",
-  name: "Agency OS",
-  createdById: "user1",
-  createdAt: new Date(),
-  updatedAt: new Date(),
-  plan: "free",
-  settings: mockOrganizationSettings,
-};
-
-const mockTeamMembers: TeamMember[] = [
-  {
-    id: "member1",
-    userId: "user1",
-    organizationId: "org1",
-    role: "owner",
-    invitedBy: "user1",
-    invitedAt: new Date(),
-    joinedAt: new Date(),
-    status: "active",
-    permissions: ["all"],
-  },
-];
-
-const mockInvites: Invite[] = [];
-
 export const OrganizationProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user } = useAuth();
   const [organization, setOrganization] = useState<Organization | null>(null);
@@ -75,24 +42,129 @@ export const OrganizationProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
       setLoading(true);
       try {
-        // Mock API call
-        await new Promise((resolve) => setTimeout(resolve, 500));
+        // Check if user belongs to any organization
+        const { data: teamMemberData, error: teamMemberError } = await supabase
+          .from('team_members')
+          .select('*, organizations(*), organization_settings(*)')
+          .eq('user_id', user.id)
+          .eq('status', 'active')
+          .single();
 
-        // In a real app, we would fetch the organization data from an API
-        // Check if user has a saved organization
-        const savedOrg = localStorage.getItem("agencyos_organization");
-        if (savedOrg) {
-          const parsedOrg = JSON.parse(savedOrg);
-          setOrganization(parsedOrg);
-          
-          // Load members and invites
-          setMembers(mockTeamMembers);
-          setInvites(mockInvites);
-        } else {
-          // First login, no organization
-          setOrganization(null);
+        if (teamMemberError && teamMemberError.code !== 'PGRST116') {
+          console.error('Error fetching team member data:', teamMemberError);
+          throw teamMemberError;
         }
-      } catch (error) {
+
+        if (teamMemberData) {
+          // User belongs to an organization
+          const orgData = teamMemberData.organizations;
+          const settingsData = teamMemberData.organization_settings;
+
+          // Fetch organization address if exists
+          const { data: addressData } = await supabase
+            .from('organization_addresses')
+            .select('*')
+            .eq('organization_id', orgData.id)
+            .maybeSingle();
+
+          // Fetch all team members for this organization
+          const { data: membersData, error: membersError } = await supabase
+            .from('team_members')
+            .select('*')
+            .eq('organization_id', orgData.id);
+
+          if (membersError) {
+            console.error('Error fetching team members:', membersError);
+            throw membersError;
+          }
+
+          // Fetch all pending invites for this organization
+          const { data: invitesData, error: invitesError } = await supabase
+            .from('invites')
+            .select('*')
+            .eq('organization_id', orgData.id)
+            .eq('status', 'pending');
+
+          if (invitesError) {
+            console.error('Error fetching invites:', invitesError);
+            throw invitesError;
+          }
+
+          // Format the address
+          const address: Address | undefined = addressData ? {
+            street: addressData.street,
+            city: addressData.city,
+            state: addressData.state,
+            zipCode: addressData.zip_code,
+            country: addressData.country,
+          } : undefined;
+
+          // Format the settings
+          const settings: OrganizationSettings = settingsData ? {
+            allowClientInvites: settingsData.allow_client_invites,
+            allowTeamInvites: settingsData.allow_team_invites,
+            defaultTaskView: settingsData.default_task_view as 'list' | 'board' | 'calendar',
+            color: settingsData.color,
+          } : {
+            allowClientInvites: true,
+            allowTeamInvites: true,
+            defaultTaskView: 'board',
+            color: '#6366f1',
+          };
+
+          // Create the organization object
+          const org: Organization = {
+            id: orgData.id,
+            name: orgData.name,
+            logo: orgData.logo,
+            email: orgData.email,
+            phone: orgData.phone,
+            taxId: orgData.tax_id,
+            currency: orgData.currency,
+            address,
+            createdById: orgData.created_by_id,
+            createdAt: new Date(orgData.created_at),
+            updatedAt: new Date(orgData.updated_at),
+            plan: 'free', // Default plan, can be updated later
+            settings: settings,
+          };
+
+          // Format team members
+          const formattedMembers: TeamMember[] = membersData?.map(member => ({
+            id: member.id,
+            userId: member.user_id,
+            organizationId: member.organization_id,
+            role: member.role as 'owner' | 'admin' | 'member',
+            invitedBy: member.invited_by,
+            invitedAt: new Date(member.invited_at),
+            joinedAt: member.joined_at ? new Date(member.joined_at) : undefined,
+            status: member.status as 'invited' | 'active' | 'inactive',
+            permissions: [], // Placeholder, can be expanded later
+          })) || [];
+
+          // Format invites
+          const formattedInvites: Invite[] = invitesData?.map(invite => ({
+            id: invite.id,
+            email: invite.email,
+            organizationId: invite.organization_id,
+            role: invite.role as 'admin' | 'member' | 'client',
+            invitedBy: invite.invited_by,
+            invitedAt: new Date(invite.invited_at),
+            status: invite.status as 'pending' | 'accepted' | 'declined',
+            token: invite.token,
+            expiresAt: new Date(invite.expires_at),
+          })) || [];
+
+          setOrganization(org);
+          setMembers(formattedMembers);
+          setInvites(formattedInvites);
+        } else {
+          // User doesn't belong to any organization yet
+          setOrganization(null);
+          setMembers([]);
+          setInvites([]);
+        }
+      } catch (error: any) {
         console.error("Failed to load organization:", error);
         toast.error("Failed to load organization data");
       } finally {
@@ -109,39 +181,96 @@ export const OrganizationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     
     setLoading(true);
     try {
-      // Mock API call
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      // Insert new organization
+      const { data: orgData, error: orgError } = await supabase
+        .from('organizations')
+        .insert({
+          name,
+          created_by_id: user.id
+        })
+        .select()
+        .single();
+        
+      if (orgError) throw orgError;
       
-      // Create new organization
-      const newOrg: Organization = {
-        ...mockOrganization,
-        id: `org${Date.now()}`,
-        name,
-        createdById: user.id,
-        createdAt: new Date(),
-        updatedAt: new Date(),
+      // Insert organization settings
+      const { error: settingsError } = await supabase
+        .from('organization_settings')
+        .insert({
+          organization_id: orgData.id,
+          allow_client_invites: true,
+          allow_team_invites: true,
+          default_task_view: 'board',
+          color: '#6366f1'
+        });
+        
+      if (settingsError) throw settingsError;
+      
+      // Insert the user as the owner of the organization
+      const { error: memberError } = await supabase
+        .from('team_members')
+        .insert({
+          user_id: user.id,
+          organization_id: orgData.id,
+          role: 'owner',
+          invited_by: user.id,
+          joined_at: new Date().toISOString(),
+          status: 'active'
+        });
+        
+      if (memberError) throw memberError;
+      
+      // Reload organization data
+      const { data: newOrgData, error: newOrgError } = await supabase
+        .from('organizations')
+        .select('*, organization_settings(*)')
+        .eq('id', orgData.id)
+        .single();
+        
+      if (newOrgError) throw newOrgError;
+      
+      // Create the formatted organization object
+      const settings: OrganizationSettings = {
+        allowClientInvites: newOrgData.organization_settings.allow_client_invites,
+        allowTeamInvites: newOrgData.organization_settings.allow_team_invites,
+        defaultTaskView: newOrgData.organization_settings.default_task_view as 'list' | 'board' | 'calendar',
+        color: newOrgData.organization_settings.color,
       };
       
-      // Create owner team member
-      const newMember: TeamMember = {
-        id: `member${Date.now()}`,
+      const newOrg: Organization = {
+        id: newOrgData.id,
+        name: newOrgData.name,
+        logo: newOrgData.logo,
+        email: newOrgData.email,
+        phone: newOrgData.phone,
+        taxId: newOrgData.tax_id,
+        currency: newOrgData.currency,
+        createdById: newOrgData.created_by_id,
+        createdAt: new Date(newOrgData.created_at),
+        updatedAt: new Date(newOrgData.updated_at),
+        plan: 'free',
+        settings: settings,
+      };
+      
+      // Create team member entry for the owner
+      const ownerMember: TeamMember = {
+        id: user.id,
         userId: user.id,
-        organizationId: newOrg.id,
-        role: "owner",
+        organizationId: newOrgData.id,
+        role: 'owner',
         invitedBy: user.id,
         invitedAt: new Date(),
         joinedAt: new Date(),
-        status: "active",
-        permissions: ["all"],
+        status: 'active',
+        permissions: ['all'],
       };
       
-      // Save to state and localStorage
       setOrganization(newOrg);
-      setMembers([newMember]);
-      localStorage.setItem("agencyos_organization", JSON.stringify(newOrg));
+      setMembers([ownerMember]);
       
       toast.success("Organization created successfully");
     } catch (error: any) {
+      console.error("Error creating organization:", error);
       toast.error(error.message || "Failed to create organization");
       throw error;
     } finally {
@@ -152,21 +281,81 @@ export const OrganizationProvider: React.FC<{ children: React.ReactNode }> = ({ 
   // Update organization
   const updateOrganization = async (data: Partial<Organization>) => {
     if (!organization) throw new Error("No organization selected");
+    if (!user) throw new Error("User not authenticated");
     
     setLoading(true);
     try {
-      // Mock API call
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      // Prepare database fields from the input data
+      const updateData: any = {
+        name: data.name,
+        email: data.email,
+        phone: data.phone,
+        tax_id: data.taxId,
+        currency: data.currency,
+        updated_at: new Date().toISOString()
+      };
       
-      // Update organization
-      const updatedOrg = { ...organization, ...data, updatedAt: new Date() };
+      // Update organization data
+      const { error: orgError } = await supabase
+        .from('organizations')
+        .update(updateData)
+        .eq('id', organization.id);
+        
+      if (orgError) throw orgError;
       
-      // Save to state and localStorage
+      // Update address if it exists in the input data
+      if (data.address) {
+        const addressData = {
+          street: data.address.street,
+          city: data.address.city,
+          state: data.address.state,
+          zip_code: data.address.zipCode,
+          country: data.address.country,
+          updated_at: new Date().toISOString()
+        };
+        
+        // Check if address already exists
+        const { data: existingAddress, error: addressCheckError } = await supabase
+          .from('organization_addresses')
+          .select('id')
+          .eq('organization_id', organization.id)
+          .maybeSingle();
+          
+        if (addressCheckError && addressCheckError.code !== 'PGRST116') throw addressCheckError;
+        
+        if (existingAddress) {
+          // Update existing address
+          const { error: addressUpdateError } = await supabase
+            .from('organization_addresses')
+            .update(addressData)
+            .eq('id', existingAddress.id);
+            
+          if (addressUpdateError) throw addressUpdateError;
+        } else {
+          // Insert new address
+          const { error: addressInsertError } = await supabase
+            .from('organization_addresses')
+            .insert({
+              ...addressData,
+              organization_id: organization.id
+            });
+            
+          if (addressInsertError) throw addressInsertError;
+        }
+      }
+      
+      // Create the updated organization object
+      const updatedOrg: Organization = {
+        ...organization,
+        ...data,
+        updatedAt: new Date()
+      };
+      
       setOrganization(updatedOrg);
-      localStorage.setItem("agencyos_organization", JSON.stringify(updatedOrg));
       
       toast.success("Organization updated successfully");
     } catch (error: any) {
+      console.error("Error updating organization:", error);
       toast.error(error.message || "Failed to update organization");
       throw error;
     } finally {
@@ -177,28 +366,49 @@ export const OrganizationProvider: React.FC<{ children: React.ReactNode }> = ({ 
   // Upload organization logo
   const uploadLogo = async (file: File): Promise<string> => {
     if (!organization) throw new Error("No organization selected");
+    if (!user) throw new Error("User not authenticated");
     
     setLoading(true);
     try {
-      // In a real implementation, we would upload the file to Supabase Storage
-      // For now, we'll create a data URL for the image
-      return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => {
-          if (typeof reader.result === 'string') {
-            // Update organization with the new logo
-            const logoUrl = reader.result;
-            updateOrganization({ logo: logoUrl })
-              .then(() => resolve(logoUrl))
-              .catch(reject);
-          } else {
-            reject(new Error('Failed to read file'));
-          }
-        };
-        reader.onerror = () => reject(reader.error);
-        reader.readAsDataURL(file);
+      // Upload file to Supabase Storage
+      const fileName = `org_${organization.id}_logo_${Date.now()}`;
+      const fileExt = file.name.split('.').pop();
+      const filePath = `${fileName}.${fileExt}`;
+      
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from('organization_logos')
+        .upload(filePath, file, {
+          cacheControl: '3600',
+          upsert: false
+        });
+        
+      if (uploadError) throw uploadError;
+      
+      // Get the public URL
+      const { data: urlData } = supabase.storage
+        .from('organization_logos')
+        .getPublicUrl(uploadData.path);
+        
+      const logoUrl = urlData.publicUrl;
+      
+      // Update organization with logo URL
+      const { error: updateError } = await supabase
+        .from('organizations')
+        .update({ logo: logoUrl })
+        .eq('id', organization.id);
+        
+      if (updateError) throw updateError;
+      
+      // Update local state
+      setOrganization({
+        ...organization,
+        logo: logoUrl
       });
+      
+      toast.success("Logo uploaded successfully");
+      return logoUrl;
     } catch (error: any) {
+      console.error("Error uploading logo:", error);
       toast.error(error.message || "Failed to upload logo");
       throw error;
     } finally {
@@ -209,26 +419,42 @@ export const OrganizationProvider: React.FC<{ children: React.ReactNode }> = ({ 
   // Update organization settings
   const updateSettings = async (settings: Partial<OrganizationSettings>) => {
     if (!organization) throw new Error("No organization selected");
+    if (!user) throw new Error("User not authenticated");
     
     setLoading(true);
     try {
-      // Mock API call
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-      
-      // Update settings
-      const updatedSettings = { ...organization.settings, ...settings };
-      const updatedOrg = { 
-        ...organization, 
-        settings: updatedSettings,
-        updatedAt: new Date() 
+      // Prepare database fields from the input settings
+      const updateData = {
+        allow_client_invites: settings.allowClientInvites,
+        allow_team_invites: settings.allowTeamInvites,
+        default_task_view: settings.defaultTaskView,
+        color: settings.color,
+        updated_at: new Date().toISOString()
       };
       
-      // Save to state and localStorage
-      setOrganization(updatedOrg);
-      localStorage.setItem("agencyos_organization", JSON.stringify(updatedOrg));
+      // Update settings in database
+      const { error: settingsError } = await supabase
+        .from('organization_settings')
+        .update(updateData)
+        .eq('organization_id', organization.id);
+        
+      if (settingsError) throw settingsError;
+      
+      // Update local state
+      const updatedSettings = {
+        ...organization.settings,
+        ...settings
+      };
+      
+      setOrganization({
+        ...organization,
+        settings: updatedSettings,
+        updatedAt: new Date()
+      });
       
       toast.success("Settings updated successfully");
     } catch (error: any) {
+      console.error("Error updating settings:", error);
       toast.error(error.message || "Failed to update settings");
       throw error;
     } finally {
@@ -243,32 +469,65 @@ export const OrganizationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     
     setLoading(true);
     try {
-      // Mock API call
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-      
       // Check if already invited
-      if (invites.some(invite => invite.email === email)) {
+      const { data: existingInvite, error: checkError } = await supabase
+        .from('invites')
+        .select('*')
+        .eq('email', email)
+        .eq('organization_id', organization.id)
+        .eq('status', 'pending')
+        .maybeSingle();
+        
+      if (checkError && checkError.code !== 'PGRST116') throw checkError;
+      
+      if (existingInvite) {
         throw new Error("User already invited");
       }
       
-      // Create invite
+      // Create invite token and expiry date (7 days from now)
+      const token = crypto.randomUUID();
+      const expiresAt = new Date();
+      expiresAt.setDate(expiresAt.getDate() + 7);
+      
+      // Insert new invite
+      const { data: inviteData, error: inviteError } = await supabase
+        .from('invites')
+        .insert({
+          email,
+          organization_id: organization.id,
+          role,
+          invited_by: user.id,
+          status: 'pending',
+          token,
+          expires_at: expiresAt.toISOString()
+        })
+        .select()
+        .single();
+        
+      if (inviteError) throw inviteError;
+      
+      // Create invite object for local state
       const newInvite: Invite = {
-        id: `invite${Date.now()}`,
-        email,
-        organizationId: organization.id,
-        role,
-        invitedBy: user.id,
-        invitedAt: new Date(),
-        status: "pending",
-        token: `token-${Date.now()}`,
-        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
+        id: inviteData.id,
+        email: inviteData.email,
+        organizationId: inviteData.organization_id,
+        role: inviteData.role as 'admin' | 'member' | 'client',
+        invitedBy: inviteData.invited_by,
+        invitedAt: new Date(inviteData.invited_at),
+        status: inviteData.status as 'pending' | 'accepted' | 'declined',
+        token: inviteData.token,
+        expiresAt: new Date(inviteData.expires_at),
       };
       
-      // Save to state
+      // Update local state
       setInvites([...invites, newInvite]);
+      
+      // In a real implementation, we would send an email to the invited user
+      // with a link to accept the invitation
       
       toast.success(`Invitation sent to ${email}`);
     } catch (error: any) {
+      console.error("Error inviting team member:", error);
       toast.error(error.message || "Failed to send invitation");
       throw error;
     } finally {
@@ -279,17 +538,25 @@ export const OrganizationProvider: React.FC<{ children: React.ReactNode }> = ({ 
   // Revoke invite
   const revokeInvite = async (inviteId: string) => {
     if (!organization) throw new Error("No organization selected");
+    if (!user) throw new Error("User not authenticated");
     
     setLoading(true);
     try {
-      // Mock API call
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      // Update invite status to declined
+      const { error } = await supabase
+        .from('invites')
+        .update({ status: 'declined' })
+        .eq('id', inviteId)
+        .eq('organization_id', organization.id);
+        
+      if (error) throw error;
       
-      // Remove invite
+      // Update local state
       setInvites(invites.filter(invite => invite.id !== inviteId));
       
       toast.success("Invitation revoked");
     } catch (error: any) {
+      console.error("Error revoking invitation:", error);
       toast.error(error.message || "Failed to revoke invitation");
       throw error;
     } finally {
@@ -300,23 +567,34 @@ export const OrganizationProvider: React.FC<{ children: React.ReactNode }> = ({ 
   // Remove team member
   const removeMember = async (memberId: string) => {
     if (!organization) throw new Error("No organization selected");
+    if (!user) throw new Error("User not authenticated");
     
     setLoading(true);
     try {
-      // Mock API call
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-      
-      // Check if trying to remove owner
+      // Get member to remove first
       const memberToRemove = members.find(m => m.id === memberId);
-      if (memberToRemove?.role === "owner") {
+      if (!memberToRemove) throw new Error("Member not found");
+      
+      // Check if trying to remove the owner
+      if (memberToRemove.role === "owner") {
         throw new Error("Cannot remove the organization owner");
       }
       
-      // Remove member
+      // Update member status to inactive
+      const { error } = await supabase
+        .from('team_members')
+        .update({ status: 'inactive' })
+        .eq('id', memberId)
+        .eq('organization_id', organization.id);
+        
+      if (error) throw error;
+      
+      // Update local state
       setMembers(members.filter(member => member.id !== memberId));
       
       toast.success("Team member removed");
     } catch (error: any) {
+      console.error("Error removing team member:", error);
       toast.error(error.message || "Failed to remove team member");
       throw error;
     } finally {
@@ -327,25 +605,36 @@ export const OrganizationProvider: React.FC<{ children: React.ReactNode }> = ({ 
   // Update member role
   const updateMemberRole = async (memberId: string, role: "admin" | "member") => {
     if (!organization) throw new Error("No organization selected");
+    if (!user) throw new Error("User not authenticated");
     
     setLoading(true);
     try {
-      // Mock API call
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-      
-      // Check if trying to update owner
+      // Get member to update first
       const memberToUpdate = members.find(m => m.id === memberId);
-      if (memberToUpdate?.role === "owner") {
+      if (!memberToUpdate) throw new Error("Member not found");
+      
+      // Check if trying to update the owner
+      if (memberToUpdate.role === "owner") {
         throw new Error("Cannot change the role of the organization owner");
       }
       
-      // Update member
+      // Update member role
+      const { error } = await supabase
+        .from('team_members')
+        .update({ role })
+        .eq('id', memberId)
+        .eq('organization_id', organization.id);
+        
+      if (error) throw error;
+      
+      // Update local state
       setMembers(members.map(member => 
         member.id === memberId ? { ...member, role } : member
       ));
       
       toast.success("Team member role updated");
     } catch (error: any) {
+      console.error("Error updating team member role:", error);
       toast.error(error.message || "Failed to update team member role");
       throw error;
     } finally {

@@ -29,7 +29,7 @@ const formSchema = z.object({
 type FormValues = z.infer<typeof formSchema>;
 
 const OrganizationBrandingForm: React.FC = () => {
-  const { organization, updateOrganization, updateSettings, uploadLogo, loading } = useOrganization();
+  const { organization, updateSettings, uploadLogo, loading } = useOrganization();
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [previewLogo, setPreviewLogo] = useState<string | undefined>(organization?.logo);
   const [uploadingLogo, setUploadingLogo] = useState(false);

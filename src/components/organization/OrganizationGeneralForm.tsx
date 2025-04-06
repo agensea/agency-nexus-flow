@@ -70,12 +70,15 @@ const OrganizationGeneralForm: React.FC = () => {
   const onSubmit = async (values: FormValues) => {
     try {
       const address = {
-        street: values.streetAddress,
-        city: values.city,
-        state: values.state,
-        zipCode: values.zipCode,
-        country: values.country,
+        street: values.streetAddress || "",
+        city: values.city || "",
+        state: values.state || "",
+        zipCode: values.zipCode || "",
+        country: values.country || "",
       };
+
+      // Only include address if at least one field is filled
+      const hasAddress = Object.values(address).some(val => val.trim() !== "");
 
       await updateOrganization({
         name: values.name,
@@ -83,7 +86,7 @@ const OrganizationGeneralForm: React.FC = () => {
         phone: values.phone || undefined,
         taxId: values.taxId || undefined,
         currency: values.currency || undefined,
-        address: address,
+        address: hasAddress ? address : undefined,
       });
     } catch (error) {
       console.error("Failed to update organization:", error);
