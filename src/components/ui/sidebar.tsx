@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 import { Link, useLocation } from "react-router-dom";
@@ -39,12 +38,9 @@ export function Sidebar({ className, isCollapsed, ...props }: SidebarProps) {
           .eq("organization_id", organization.id)
           .eq("status", "active")
           .single();
-
-        if (error) {
-          console.error("Error checking admin status:", error);
-          return;
-        }
-
+        
+        if (error) throw error;
+        
         setIsAdmin(data.role === "admin" || data.role === "owner");
       } catch (error) {
         console.error("Error checking admin permissions:", error);
@@ -117,8 +113,8 @@ export function Sidebar({ className, isCollapsed, ...props }: SidebarProps) {
             {!isCollapsed && <span>Dashboard</span>}
           </Link>
 
-          {/* Only show organization/team for admins */}
-          {isAdmin && (
+          {/* Show organization/team for all users who are part of an organization */}
+          {organization && (
             <Link
               to="/organization/team"
               className={cn(
@@ -136,7 +132,7 @@ export function Sidebar({ className, isCollapsed, ...props }: SidebarProps) {
               {!isCollapsed && <span>Team Management</span>}
             </Link>
           )}
-
+          
           <Link
             to="/clients"
             className={cn(

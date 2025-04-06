@@ -7,7 +7,7 @@ import DashboardLayout from "@/components/layouts/DashboardLayout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Helmet } from "react-helmet-async";
-import { Loader2 } from "lucide-react";
+import { Loader2, ShieldAlert } from "lucide-react";
 import TeamMembers from "@/components/team/TeamMembers";
 import TeamInvites from "@/components/team/TeamInvites";
 import TeamInviteForm from "@/components/team/TeamInviteForm";
@@ -19,12 +19,14 @@ const TeamManagementPage: React.FC = () => {
   const { organization, members, loading } = useOrganization();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState("members");
-  const [isAdmin, setIsAdmin] = useState(false);
+  const [userRole, setUserRole] = useState<string | null>(null);
+  const [roleLoading, setRoleLoading] = useState(true);
 
-  // Check if the user has admin permissions
+  // Check if the user has proper permissions and fetch their role
   useEffect(() => {
-    const checkAdminStatus = async () => {
+    const checkUserAccess = async () => {
       if (!user || !organization) return;
+      setRoleLoading(true);
 
       try {
         const { data, error } = await supabase
@@ -37,24 +39,28 @@ const TeamManagementPage: React.FC = () => {
 
         if (error) throw error;
 
-        if (data && (data.role === "admin" || data.role === "owner")) {
-          setIsAdmin(true);
-        } else {
-          // Redirect non-admin users
-          toast.error("You don't have permission to access this page");
+        setUserRole(data.role);
+
+        // If user is not part of this organization at all, redirect them
+        if (!data) {
+          toast.error("You don't have access to this organization");
           navigate("/dashboard");
         }
       } catch (error) {
-        console.error("Error checking admin status:", error);
-        toast.error("An error occurred while verifying your permissions");
+        console.error("Error checking user access:", error);
+        toast.error("An error occurred while verifying your access");
         navigate("/dashboard");
+      } finally {
+        setRoleLoading(false);
       }
     };
 
-    checkAdminStatus();
+    checkUserAccess();
   }, [user, organization, navigate]);
 
-  if (loading) {
+  const isAdminOrOwner = userRole === "admin" || userRole === "owner";
+
+  if (loading || roleLoading) {
     return (
       <DashboardLayout>
         <div className="flex h-screen items-center justify-center">
@@ -64,7 +70,7 @@ const TeamManagementPage: React.FC = () => {
     );
   }
 
-  if (!user || !organization || !isAdmin) {
+  if (!user || !organization) {
     return null; // Will redirect in useEffect
   }
 
@@ -83,13 +89,27 @@ const TeamManagementPage: React.FC = () => {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {/* Invite Form */}
-            <Card className="md:col-span-1">
-              <CardContent className="p-6">
-                <h2 className="text-xl font-semibold mb-4">Invite New Member</h2>
-                <TeamInviteForm />
-              </CardContent>
-            </Card>
+            {/* Invite Form - only shown to admins and owners */}
+            {isAdminOrOwner ? (
+              <Card className="md:col-span-1">
+                <CardContent className="p-6">
+                  <h2 className="text-xl font-semibold mb-4">Invite New Member</h2>
+                  <TeamInviteForm />
+                </CardContent>
+              </Card>
+            ) : (
+              <Card className="md:col-span-1">
+                <CardContent className="p-6 space-y-4">
+                  <div className="flex flex-col items-center justify-center text-center space-y-3 py-6">
+                    <ShieldAlert className="h-12 w-12 text-muted-foreground" />
+                    <h2 className="text-xl font-semibold">Limited Access</h2>
+                    <p className="text-muted-foreground">
+                      As a team member, you can view the team but cannot invite new members or make changes.
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
 
             {/* Team Members & Invites Tabs */}
             <Card className="md:col-span-2">
@@ -100,11 +120,11 @@ const TeamManagementPage: React.FC = () => {
                 </TabsList>
                 
                 <TabsContent value="members" className="p-6">
-                  <TeamMembers organization={organization} />
+                  <TeamMembers organization={organization} userRole={userRole} />
                 </TabsContent>
                 
                 <TabsContent value="invites" className="p-6">
-                  <TeamInvites organization={organization} />
+                  <TeamInvites organization={organization} userRole={userRole} />
                 </TabsContent>
               </Tabs>
             </Card>

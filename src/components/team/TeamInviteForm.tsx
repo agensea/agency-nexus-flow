@@ -1,3 +1,4 @@
+
 import React, { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -34,13 +35,20 @@ const formSchema = z.object({
 
 type FormValues = z.infer<typeof formSchema>;
 
-interface ProfileData {
-  id: string;
+// Define simpler interfaces to avoid deep type instantiation
+interface ProfileResponse {
+  data: { id: string } | null;
+  error: any;
 }
 
-interface TeamMemberData {
-  id: string;
-  status: string;
+interface TeamMemberResponse {
+  data: { id: string; status: string } | null;
+  error: any;
+}
+
+interface InviteResponse {
+  data: { id: string } | null;
+  error: any;
 }
 
 const TeamInviteForm: React.FC<{ onSuccess?: () => void }> = ({ onSuccess }) => {
@@ -63,7 +71,8 @@ const TeamInviteForm: React.FC<{ onSuccess?: () => void }> = ({ onSuccess }) => 
 
     setLoading(true);
     try {
-      const { data: existingInvite, error: checkError } = await supabase
+      // Check for existing pending invites
+      const existingInviteResponse = await supabase
         .from("invites")
         .select("*")
         .eq("email", values.email)
@@ -71,44 +80,56 @@ const TeamInviteForm: React.FC<{ onSuccess?: () => void }> = ({ onSuccess }) => 
         .eq("status", "pending")
         .maybeSingle();
 
-      if (checkError && checkError.code !== "PGRST116") throw checkError;
+      if (existingInviteResponse.error && existingInviteResponse.error.code !== "PGRST116") {
+        throw existingInviteResponse.error;
+      }
 
-      if (existingInvite) {
+      if (existingInviteResponse.data) {
         toast.error("This email has already been invited");
+        setLoading(false);
         return;
       }
 
-      let existingUser = null;
-      const { data: profileData, error: profileError } = await supabase
+      // Check if user already exists
+      const profileResponse: ProfileResponse = await supabase
         .from("profiles")
         .select("id")
         .eq("email", values.email)
         .maybeSingle();
 
-      if (profileError && profileError.code !== "PGRST116") throw profileError;
-      if (profileData) existingUser = { id: profileData.id };
+      if (profileResponse.error && profileResponse.error.code !== "PGRST116") {
+        throw profileResponse.error;
+      }
 
-      if (existingUser) {
-        const { data: memberData, error: memberError } = await supabase
+      // If user exists, check if they're already a team member
+      let existingUser = null;
+      if (profileResponse.data) {
+        existingUser = { id: profileResponse.data.id };
+
+        const memberResponse: TeamMemberResponse = await supabase
           .from("team_members")
           .select("id, status")
           .eq("user_id", existingUser.id)
           .eq("organization_id", organization.id)
           .maybeSingle();
 
-        if (memberError && memberError.code !== "PGRST116") throw memberError;
+        if (memberResponse.error && memberResponse.error.code !== "PGRST116") {
+          throw memberResponse.error;
+        }
 
-        if (memberData && memberData.status === "active") {
+        if (memberResponse.data && memberResponse.data.status === "active") {
           toast.error("This user is already a team member");
+          setLoading(false);
           return;
         }
       }
 
+      // Create the invite
       const token = crypto.randomUUID();
       const expiresAt = new Date();
       expiresAt.setDate(expiresAt.getDate() + 7);
 
-      const { data: inviteData, error: inviteError } = await supabase
+      const inviteResponse: InviteResponse = await supabase
         .from("invites")
         .insert({
           email: values.email,
@@ -124,13 +145,18 @@ const TeamInviteForm: React.FC<{ onSuccess?: () => void }> = ({ onSuccess }) => 
         .select()
         .single();
 
-      if (inviteError) throw inviteError;
+      if (inviteResponse.error) {
+        throw inviteResponse.error;
+      }
 
-      const { error: sendError } = await supabase.functions.invoke("send-invite", {
-        body: { inviteId: inviteData.id },
+      // Send the invite email
+      const sendResponse = await supabase.functions.invoke("send-invite", {
+        body: { inviteId: inviteResponse.data.id },
       });
 
-      if (sendError) throw sendError;
+      if (sendResponse.error) {
+        throw sendResponse.error;
+      }
 
       toast.success(`Invitation sent to ${values.email}`);
       form.reset();
@@ -146,7 +172,7 @@ const TeamInviteForm: React.FC<{ onSuccess?: () => void }> = ({ onSuccess }) => 
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-        <FormField<FormValues, "name">
+        <FormField
           control={form.control}
           name="name"
           render={({ field }) => (
@@ -160,7 +186,7 @@ const TeamInviteForm: React.FC<{ onSuccess?: () => void }> = ({ onSuccess }) => 
           )}
         />
 
-        <FormField<FormValues, "email">
+        <FormField
           control={form.control}
           name="email"
           render={({ field }) => (
@@ -179,7 +205,7 @@ const TeamInviteForm: React.FC<{ onSuccess?: () => void }> = ({ onSuccess }) => 
           )}
         />
 
-        <FormField<FormValues, "department">
+        <FormField
           control={form.control}
           name="department"
           render={({ field }) => (
@@ -193,7 +219,7 @@ const TeamInviteForm: React.FC<{ onSuccess?: () => void }> = ({ onSuccess }) => 
           )}
         />
 
-        <FormField<FormValues, "role">
+        <FormField
           control={form.control}
           name="role"
           render={({ field }) => (
@@ -233,4 +259,3 @@ const TeamInviteForm: React.FC<{ onSuccess?: () => void }> = ({ onSuccess }) => 
 };
 
 export default TeamInviteForm;
-

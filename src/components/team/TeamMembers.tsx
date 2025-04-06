@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { User } from "@/types";
 import { useAuth } from "@/contexts/AuthContext";
@@ -60,9 +61,10 @@ interface TeamMember {
 
 interface TeamMembersProps {
   organization: any;
+  userRole?: string | null;
 }
 
-const TeamMembers: React.FC<TeamMembersProps> = ({ organization }) => {
+const TeamMembers: React.FC<TeamMembersProps> = ({ organization, userRole }) => {
   const { user } = useAuth();
   const [members, setMembers] = useState<TeamMember[]>([]);
   const [loading, setLoading] = useState(true);
@@ -71,31 +73,13 @@ const TeamMembers: React.FC<TeamMembersProps> = ({ organization }) => {
   const [confirmRoleChangeOpen, setConfirmRoleChangeOpen] = useState(false);
   const [memberToUpdate, setMemberToUpdate] = useState<TeamMember | null>(null);
   const [newRole, setNewRole] = useState<string>("");
-  const [userIsOwner, setUserIsOwner] = useState(false);
+  
+  // Check if user has admin privileges
+  const isAdminOrOwner = userRole === "admin" || userRole === "owner";
 
   useEffect(() => {
     fetchTeamMembers();
-    checkUserRole();
   }, [organization.id]);
-
-  const checkUserRole = async () => {
-    if (!user) return;
-    
-    try {
-      const { data, error } = await supabase
-        .from("team_members")
-        .select("role")
-        .eq("user_id", user.id)
-        .eq("organization_id", organization.id)
-        .single();
-        
-      if (error) throw error;
-      
-      setUserIsOwner(data.role === "owner");
-    } catch (error) {
-      console.error("Error checking user role:", error);
-    }
-  };
 
   const fetchTeamMembers = async () => {
     setLoading(true);
@@ -135,7 +119,7 @@ const TeamMembers: React.FC<TeamMembersProps> = ({ organization }) => {
   };
 
   const handleRemoveMember = async () => {
-    if (!memberToRemove) return;
+    if (!memberToRemove || !isAdminOrOwner) return;
 
     // Don't allow removing the owner
     if (memberToRemove.role === "owner") {
@@ -165,7 +149,7 @@ const TeamMembers: React.FC<TeamMembersProps> = ({ organization }) => {
   };
 
   const handleRoleChange = async () => {
-    if (!memberToUpdate || !newRole) return;
+    if (!memberToUpdate || !newRole || !isAdminOrOwner) return;
 
     // Don't allow changing the owner's role
     if (memberToUpdate.role === "owner") {
@@ -182,12 +166,6 @@ const TeamMembers: React.FC<TeamMembersProps> = ({ organization }) => {
         .eq("id", memberToUpdate.id);
 
       if (error) throw error;
-
-      // Also update the profile record to keep roles in sync
-      await supabase
-        .from("profiles")
-        .update({ role: newRole })
-        .eq("id", memberToUpdate.user_id);
 
       toast.success(`Role updated to ${newRole}`);
       fetchTeamMembers();
@@ -230,13 +208,13 @@ const TeamMembers: React.FC<TeamMembersProps> = ({ organization }) => {
             <TableHead>Department</TableHead>
             <TableHead>Role</TableHead>
             <TableHead>Joined</TableHead>
-            <TableHead className="text-right">Actions</TableHead>
+            {isAdminOrOwner && <TableHead className="text-right">Actions</TableHead>}
           </TableRow>
         </TableHeader>
         <TableBody>
           {members.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={5} className="text-center py-6 text-muted-foreground">
+              <TableCell colSpan={isAdminOrOwner ? 5 : 4} className="text-center py-6 text-muted-foreground">
                 No team members found
               </TableCell>
             </TableRow>
@@ -276,120 +254,126 @@ const TeamMembers: React.FC<TeamMembersProps> = ({ organization }) => {
                     ? format(new Date(member.joined_at), "MMM d, yyyy") 
                     : "-"}
                 </TableCell>
-                <TableCell className="text-right">
-                  {member.role !== "owner" || userIsOwner ? (
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon">
-                          <MoreVertical className="h-4 w-4" />
-                          <span className="sr-only">Actions</span>
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        {member.role !== "owner" && (
-                          <>
-                            <DropdownMenuItem
-                              onClick={() => {
-                                setMemberToUpdate(member);
-                                setNewRole(member.role === "admin" ? "member" : "admin");
-                                setConfirmRoleChangeOpen(true);
-                              }}
-                            >
-                              <UserCog className="h-4 w-4 mr-2" />
-                              Change to {member.role === "admin" ? "Member" : "Admin"}
-                            </DropdownMenuItem>
-                            <DropdownMenuItem
-                              onClick={() => {
-                                setMemberToRemove(member);
-                                setConfirmRemoveOpen(true);
-                              }}
-                              className="text-destructive"
-                            >
-                              <UserMinus className="h-4 w-4 mr-2" />
-                              Remove
-                            </DropdownMenuItem>
-                          </>
-                        )}
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  ) : (
-                    <span className="text-sm text-muted-foreground">
-                      No actions
-                    </span>
-                  )}
-                </TableCell>
+                {isAdminOrOwner && (
+                  <TableCell className="text-right">
+                    {member.role !== "owner" || userRole === "owner" ? (
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon">
+                            <MoreVertical className="h-4 w-4" />
+                            <span className="sr-only">Actions</span>
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          {member.role !== "owner" && (
+                            <>
+                              <DropdownMenuItem
+                                onClick={() => {
+                                  setMemberToUpdate(member);
+                                  setNewRole(member.role === "admin" ? "member" : "admin");
+                                  setConfirmRoleChangeOpen(true);
+                                }}
+                              >
+                                <UserCog className="h-4 w-4 mr-2" />
+                                Change to {member.role === "admin" ? "Member" : "Admin"}
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onClick={() => {
+                                  setMemberToRemove(member);
+                                  setConfirmRemoveOpen(true);
+                                }}
+                                className="text-destructive"
+                              >
+                                <UserMinus className="h-4 w-4 mr-2" />
+                                Remove
+                              </DropdownMenuItem>
+                            </>
+                          )}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    ) : (
+                      <span className="text-sm text-muted-foreground">
+                        No actions
+                      </span>
+                    )}
+                  </TableCell>
+                )}
               </TableRow>
             ))
           )}
         </TableBody>
       </Table>
 
-      {/* Remove Member Dialog */}
-      <Dialog open={confirmRemoveOpen} onOpenChange={setConfirmRemoveOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Remove Team Member</DialogTitle>
-            <DialogDescription>
-              Are you sure you want to remove {memberToRemove?.profile?.name} from your organization? 
-              This action cannot be undone.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button 
-              variant="outline" 
-              onClick={() => setConfirmRemoveOpen(false)}
-            >
-              Cancel
-            </Button>
-            <Button 
-              variant="destructive" 
-              onClick={handleRemoveMember}
-            >
-              Remove
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* Remove Member Dialog - only shown for admin/owner */}
+      {isAdminOrOwner && (
+        <>
+          <Dialog open={confirmRemoveOpen} onOpenChange={setConfirmRemoveOpen}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Remove Team Member</DialogTitle>
+                <DialogDescription>
+                  Are you sure you want to remove {memberToRemove?.profile?.name} from your organization? 
+                  This action cannot be undone.
+                </DialogDescription>
+              </DialogHeader>
+              <DialogFooter>
+                <Button 
+                  variant="outline" 
+                  onClick={() => setConfirmRemoveOpen(false)}
+                >
+                  Cancel
+                </Button>
+                <Button 
+                  variant="destructive" 
+                  onClick={handleRemoveMember}
+                >
+                  Remove
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
 
-      {/* Change Role Dialog */}
-      <Dialog open={confirmRoleChangeOpen} onOpenChange={setConfirmRoleChangeOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Change Role</DialogTitle>
-            <DialogDescription>
-              Are you sure you want to change {memberToUpdate?.profile?.name}'s role from{" "}
-              {memberToUpdate?.role} to {newRole}?
-            </DialogDescription>
-          </DialogHeader>
-          <div className="py-4">
-            <Select
-              value={newRole}
-              onValueChange={setNewRole}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Select new role" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="admin">Admin</SelectItem>
-                <SelectItem value="member">Member</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <DialogFooter>
-            <Button 
-              variant="outline" 
-              onClick={() => setConfirmRoleChangeOpen(false)}
-            >
-              Cancel
-            </Button>
-            <Button 
-              onClick={handleRoleChange}
-            >
-              Save Changes
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          {/* Change Role Dialog */}
+          <Dialog open={confirmRoleChangeOpen} onOpenChange={setConfirmRoleChangeOpen}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Change Role</DialogTitle>
+                <DialogDescription>
+                  Are you sure you want to change {memberToUpdate?.profile?.name}'s role from{" "}
+                  {memberToUpdate?.role} to {newRole}?
+                </DialogDescription>
+              </DialogHeader>
+              <div className="py-4">
+                <Select
+                  value={newRole}
+                  onValueChange={setNewRole}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select new role" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="admin">Admin</SelectItem>
+                    <SelectItem value="member">Member</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <DialogFooter>
+                <Button 
+                  variant="outline" 
+                  onClick={() => setConfirmRoleChangeOpen(false)}
+                >
+                  Cancel
+                </Button>
+                <Button 
+                  onClick={handleRoleChange}
+                >
+                  Save Changes
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        </>
+      )}
     </div>
   );
 };

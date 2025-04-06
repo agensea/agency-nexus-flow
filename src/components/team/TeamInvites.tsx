@@ -1,164 +1,95 @@
 
 import React, { useState, useEffect } from "react";
+import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
-import { 
-  Table, 
-  TableBody, 
-  TableCell, 
-  TableHead, 
-  TableHeader, 
-  TableRow 
-} from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { toast } from "sonner";
-import { Loader2, RefreshCw, Send, X } from "lucide-react";
-import { format, isPast } from "date-fns";
 import { Invite } from "@/types";
+import { toast } from "sonner";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Loader2 } from "lucide-react";
 
 interface TeamInvitesProps {
   organization: any;
+  userRole?: string | null;
 }
 
-const TeamInvites: React.FC<TeamInvitesProps> = ({ organization }) => {
+const TeamInvites: React.FC<TeamInvitesProps> = ({ organization, userRole }) => {
+  const { user } = useAuth();
   const [invites, setInvites] = useState<Invite[]>([]);
   const [loading, setLoading] = useState(true);
-  const [confirmRevokeOpen, setConfirmRevokeOpen] = useState(false);
-  const [inviteToRevoke, setInviteToRevoke] = useState<Invite | null>(null);
-  const [confirmResendOpen, setConfirmResendOpen] = useState(false);
-  const [inviteToResend, setInviteToResend] = useState<Invite | null>(null);
-  const [resending, setResending] = useState(false);
-  const [revoking, setRevoking] = useState(false);
+
+  // Check if user has admin privileges
+  const isAdminOrOwner = userRole === "admin" || userRole === "owner";
 
   useEffect(() => {
     fetchInvites();
   }, [organization.id]);
 
   const fetchInvites = async () => {
+    if (!organization) return;
+
     setLoading(true);
     try {
       const { data, error } = await supabase
         .from("invites")
         .select("*")
         .eq("organization_id", organization.id)
-        .order("invited_at", { ascending: false });
+        .eq("status", "pending");
 
       if (error) throw error;
-      
-      const formattedInvites: Invite[] = data.map((invite: any) => ({
-        id: invite.id,
-        email: invite.email,
-        name: invite.name || null,
-        department: invite.department || null,
-        organization_id: invite.organization_id,
-        role: invite.role as 'admin' | 'member' | 'client',
-        invited_by: invite.invited_by,
-        invited_at: invite.invited_at,
-        status: invite.status as 'pending' | 'accepted' | 'declined' | 'revoked',
-        token: invite.token,
-        expires_at: invite.expires_at,
-        created_at: invite.created_at,
-        updated_at: invite.updated_at
-      }));
-      
-      setInvites(formattedInvites);
+
+      setInvites(data || []);
     } catch (error) {
       console.error("Error fetching invites:", error);
-      toast.error("Failed to load invitations");
+      toast.error("Failed to load invites");
     } finally {
       setLoading(false);
     }
   };
 
-  const handleRevokeInvite = async () => {
-    if (!inviteToRevoke) return;
+  const handleResendInvite = async (inviteId: string) => {
+    if (!isAdminOrOwner) return;
     
-    setRevoking(true);
+    try {
+      const { error } = await supabase.functions.invoke("send-invite", {
+        body: { inviteId },
+      });
+
+      if (error) throw error;
+
+      toast.success("Invitation resent successfully");
+    } catch (error) {
+      console.error("Error resending invite:", error);
+      toast.error("Failed to resend invitation");
+    }
+  };
+
+  const handleRevokeInvite = async (inviteId: string) => {
+    if (!isAdminOrOwner) return;
+    
     try {
       const { error } = await supabase
         .from("invites")
         .update({ status: "revoked" })
-        .eq("id", inviteToRevoke.id);
+        .eq("id", inviteId);
 
       if (error) throw error;
 
       toast.success("Invitation revoked successfully");
-      fetchInvites();
+      fetchInvites(); // Refresh the list
     } catch (error) {
       console.error("Error revoking invite:", error);
       toast.error("Failed to revoke invitation");
-    } finally {
-      setRevoking(false);
-      setConfirmRevokeOpen(false);
-      setInviteToRevoke(null);
     }
-  };
-
-  const handleResendInvite = async () => {
-    if (!inviteToResend) return;
-    
-    setResending(true);
-    try {
-      const newToken = crypto.randomUUID();
-      const expiresAt = new Date();
-      expiresAt.setDate(expiresAt.getDate() + 7); // 7 days from now
-      
-      const { error } = await supabase
-        .from("invites")
-        .update({
-          token: newToken,
-          expires_at: expiresAt.toISOString(),
-          status: "pending"
-        })
-        .eq("id", inviteToResend.id);
-
-      if (error) throw error;
-
-      const { error: sendError } = await supabase.functions.invoke('send-invite', {
-        body: { 
-          inviteId: inviteToResend.id,
-          newToken: newToken 
-        }
-      });
-
-      if (sendError) throw sendError;
-
-      toast.success("Invitation resent successfully");
-      fetchInvites();
-    } catch (error) {
-      console.error("Error resending invite:", error);
-      toast.error("Failed to resend invitation");
-    } finally {
-      setResending(false);
-      setConfirmResendOpen(false);
-      setInviteToResend(null);
-    }
-  };
-
-  const isExpired = (expiresAt: string) => {
-    return isPast(new Date(expiresAt));
-  };
-
-  const getBadgeVariant = (status: string, expires_at: string) => {
-    if (status === "accepted") return "success";
-    if (status === "revoked") return "destructive";
-    if (isExpired(expires_at)) return "outline";
-    return "default";
-  };
-
-  const getStatusText = (status: string, expires_at: string) => {
-    if (status === "accepted") return "Accepted";
-    if (status === "revoked") return "Revoked";
-    if (isExpired(expires_at)) return "Expired";
-    return "Pending";
   };
 
   if (loading) {
@@ -169,158 +100,81 @@ const TeamInvites: React.FC<TeamInvitesProps> = ({ organization }) => {
     );
   }
 
+  if (invites.length === 0) {
+    return (
+      <div className="text-center py-6 text-muted-foreground">
+        No pending invitations
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-4">
-      <div className="flex justify-between items-center">
-        <h3 className="text-lg font-medium">Pending Invitations ({invites.filter(i => i.status === "pending" && !isExpired(i.expires_at)).length})</h3>
-        <Button variant="outline" size="sm" onClick={fetchInvites}>
-          <RefreshCw className="h-4 w-4 mr-2" />
-          Refresh
-        </Button>
-      </div>
-
+      <h3 className="text-lg font-medium">Pending Invitations ({invites.length})</h3>
+      
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>Email</TableHead>
-            <TableHead>Name</TableHead>
-            <TableHead>Department</TableHead>
+            <TableHead>Invitee</TableHead>
             <TableHead>Role</TableHead>
+            <TableHead>Department</TableHead>
             <TableHead>Status</TableHead>
             <TableHead>Invited</TableHead>
-            <TableHead>Expires</TableHead>
-            <TableHead className="text-right">Actions</TableHead>
+            {isAdminOrOwner && <TableHead className="text-right">Actions</TableHead>}
           </TableRow>
         </TableHeader>
         <TableBody>
-          {invites.length === 0 ? (
-            <TableRow>
-              <TableCell colSpan={8} className="text-center py-6 text-muted-foreground">
-                No invitations found
+          {invites.map((invite) => (
+            <TableRow key={invite.id}>
+              <TableCell>
+                <div className="flex items-center gap-3">
+                  <Avatar>
+                    <AvatarFallback>
+                      {invite.email.substring(0, 2).toUpperCase()}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div>
+                    <p className="font-medium">{invite.name || "Unknown"}</p>
+                    <p className="text-sm text-muted-foreground">{invite.email}</p>
+                  </div>
+                </div>
               </TableCell>
+              <TableCell>
+                <Badge variant="outline" className="capitalize">
+                  {invite.role}
+                </Badge>
+              </TableCell>
+              <TableCell>{invite.department || "-"}</TableCell>
+              <TableCell>
+                <Badge className="capitalize bg-yellow-500">
+                  {invite.status}
+                </Badge>
+              </TableCell>
+              <TableCell>
+                {new Date(invite.invited_at).toLocaleDateString()}
+              </TableCell>
+              {isAdminOrOwner && (
+                <TableCell className="text-right space-x-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => handleResendInvite(invite.id)}
+                  >
+                    Resend
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    onClick={() => handleRevokeInvite(invite.id)}
+                  >
+                    Revoke
+                  </Button>
+                </TableCell>
+              )}
             </TableRow>
-          ) : (
-            invites.map((invite) => (
-              <TableRow key={invite.id}>
-                <TableCell>{invite.email}</TableCell>
-                <TableCell>{invite.name || "-"}</TableCell>
-                <TableCell>{invite.department || "-"}</TableCell>
-                <TableCell className="capitalize">{invite.role}</TableCell>
-                <TableCell>
-                  <Badge variant={getBadgeVariant(invite.status, invite.expires_at) as any}>
-                    {getStatusText(invite.status, invite.expires_at)}
-                  </Badge>
-                </TableCell>
-                <TableCell>{format(new Date(invite.invited_at), "MMM d, yyyy")}</TableCell>
-                <TableCell>
-                  {isExpired(invite.expires_at) ? (
-                    <span className="text-muted-foreground">Expired</span>
-                  ) : (
-                    format(new Date(invite.expires_at), "MMM d, yyyy")
-                  )}
-                </TableCell>
-                <TableCell className="text-right">
-                  {invite.status === "pending" && (
-                    <div className="flex justify-end gap-2">
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        title="Resend invite"
-                        onClick={() => {
-                          setInviteToResend(invite);
-                          setConfirmResendOpen(true);
-                        }}
-                      >
-                        <Send className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        title="Revoke invite"
-                        onClick={() => {
-                          setInviteToRevoke(invite);
-                          setConfirmRevokeOpen(true);
-                        }}
-                      >
-                        <X className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  )}
-                </TableCell>
-              </TableRow>
-            ))
-          )}
+          ))}
         </TableBody>
       </Table>
-
-      <Dialog open={confirmRevokeOpen} onOpenChange={setConfirmRevokeOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Revoke Invitation</DialogTitle>
-            <DialogDescription>
-              Are you sure you want to revoke the invitation sent to {inviteToRevoke?.email}?
-              They will no longer be able to use this invite.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button 
-              variant="outline" 
-              onClick={() => setConfirmRevokeOpen(false)}
-              disabled={revoking}
-            >
-              Cancel
-            </Button>
-            <Button 
-              variant="destructive" 
-              onClick={handleRevokeInvite}
-              disabled={revoking}
-            >
-              {revoking ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Revoking...
-                </>
-              ) : (
-                "Revoke Invite"
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={confirmResendOpen} onOpenChange={setConfirmResendOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Resend Invitation</DialogTitle>
-            <DialogDescription>
-              This will generate a new invitation link and send it to {inviteToResend?.email}.
-              The previous link will no longer work.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button 
-              variant="outline" 
-              onClick={() => setConfirmResendOpen(false)}
-              disabled={resending}
-            >
-              Cancel
-            </Button>
-            <Button 
-              onClick={handleResendInvite}
-              disabled={resending}
-            >
-              {resending ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Sending...
-                </>
-              ) : (
-                "Resend Invite"
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 };
