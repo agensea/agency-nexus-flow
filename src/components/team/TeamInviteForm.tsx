@@ -36,6 +36,16 @@ const formSchema = z.object({
 
 type FormValues = z.infer<typeof formSchema>;
 
+// Define explicit interfaces for our database responses
+interface ProfileData {
+  id: string;
+}
+
+interface TeamMemberData {
+  id: string;
+  status: string;
+}
+
 const TeamInviteForm: React.FC<{ onSuccess?: () => void }> = ({ onSuccess }) => {
   const { organization } = useOrganization();
   const { user } = useAuth();
@@ -72,39 +82,31 @@ const TeamInviteForm: React.FC<{ onSuccess?: () => void }> = ({ onSuccess }) => 
         return;
       }
       
-      // Check if user is already a member
-      // Use type assertion with more specific return type
-      interface ProfileData {
-        id: string;
-      }
-      
-      const profileQuery = await supabase
+      // Check if user exists in profiles
+      const profileResult = await supabase
         .from("profiles")
         .select("id")
         .eq("email", values.email)
         .maybeSingle();
-        
-      const existingUser = profileQuery.data as ProfileData | null;
-      const checkUserError = profileQuery.error;
+      
+      // Explicitly handle the response to avoid type issues
+      const existingUser = profileResult.data as ProfileData | null;
+      const checkUserError = profileResult.error;
       
       if (checkUserError && checkUserError.code !== "PGRST116") throw checkUserError;
       
       if (existingUser) {
         // Check if this user is already a member of the organization
-        interface TeamMemberData {
-          id: string;
-          status: string;
-        }
-        
-        const memberQuery = await supabase
+        const memberResult = await supabase
           .from("team_members")
-          .select("*")
+          .select("id, status")
           .eq("user_id", existingUser.id)
           .eq("organization_id", organization.id)
           .maybeSingle();
           
-        const existingMember = memberQuery.data as TeamMemberData | null;
-        const checkMemberError = memberQuery.error;
+        // Explicitly handle the response to avoid type issues
+        const existingMember = memberResult.data as TeamMemberData | null;
+        const checkMemberError = memberResult.error;
           
         if (checkMemberError && checkMemberError.code !== "PGRST116") throw checkMemberError;
         
