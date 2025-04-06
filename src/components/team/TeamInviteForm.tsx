@@ -1,3 +1,4 @@
+
 import React, { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -54,14 +55,17 @@ const TeamInviteForm: React.FC<{ onSuccess?: () => void }> = ({ onSuccess }) => 
 
     setLoading(true);
     try {
-      // Check for existing pending invites - Use explicit type casting to avoid deep type instantiation
-      const { data: existingInvite, error: existingInviteError } = await supabase
+      // Check for existing pending invites - Specify types explicitly to avoid deep type instantiation
+      const existingInviteResult = await supabase
         .from("invites")
         .select("id")
         .eq("email", values.email)
         .eq("organization_id", organization.id)
         .eq("status", "pending")
         .maybeSingle();
+      
+      const existingInvite = existingInviteResult.data;
+      const existingInviteError = existingInviteResult.error;
 
       if (existingInviteError && existingInviteError.code !== "PGRST116") {
         throw existingInviteError;
@@ -73,12 +77,15 @@ const TeamInviteForm: React.FC<{ onSuccess?: () => void }> = ({ onSuccess }) => 
         return;
       }
 
-      // Check if user already exists - Use explicit type casting to avoid deep type instantiation
-      const { data: profile, error: profileError } = await supabase
+      // Check if user already exists - Specify types explicitly to avoid deep type instantiation
+      const profileResult = await supabase
         .from("profiles")
         .select("id")
         .eq("email", values.email)
         .maybeSingle();
+      
+      const profile = profileResult.data;
+      const profileError = profileResult.error;
 
       if (profileError && profileError.code !== "PGRST116") {
         throw profileError;
@@ -87,12 +94,15 @@ const TeamInviteForm: React.FC<{ onSuccess?: () => void }> = ({ onSuccess }) => 
       // If user exists, check if they're already a team member
       let existingUserId = profile?.id;
       if (existingUserId) {
-        const { data: member, error: memberError } = await supabase
+        const memberResult = await supabase
           .from("team_members")
           .select("id, status")
           .eq("user_id", existingUserId)
           .eq("organization_id", organization.id)
           .maybeSingle();
+        
+        const member = memberResult.data;
+        const memberError = memberResult.error;
 
         if (memberError && memberError.code !== "PGRST116") {
           throw memberError;
@@ -122,20 +132,25 @@ const TeamInviteForm: React.FC<{ onSuccess?: () => void }> = ({ onSuccess }) => 
         expires_at: expiresAt.toISOString(),
       };
 
-      const { data: createdInvite, error: inviteError } = await supabase
+      const inviteResult = await supabase
         .from("invites")
         .insert(inviteData)
         .select()
         .single();
+      
+      const createdInvite = inviteResult.data;
+      const inviteError = inviteResult.error;
 
       if (inviteError) {
         throw inviteError;
       }
 
       // Send the invite email
-      const { error: sendError } = await supabase.functions.invoke("send-invite", {
+      const sendResult = await supabase.functions.invoke("send-invite", {
         body: { inviteId: createdInvite.id },
       });
+      
+      const sendError = sendResult.error;
 
       if (sendError) {
         throw sendError;
