@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useAuth } from "@/contexts/AuthContext";
@@ -65,7 +64,6 @@ const OrganizationTeamMembers: React.FC = () => {
   const [memberToRemove, setMemberToRemove] = useState<string | null>(null);
   const [memberProfiles, setMemberProfiles] = useState<Record<string, User>>({});
   
-  // Fetch user profiles for team members
   useEffect(() => {
     const fetchUserProfiles = async () => {
       if (!members.length) return;
@@ -365,7 +363,7 @@ const OrganizationTeamMembers: React.FC = () => {
                       </span>
                     </TableCell>
                     <TableCell>
-                      {new Date(invite.invitedAt).toLocaleDateString()}
+                      {new Date(invite.invited_at).toLocaleDateString()}
                     </TableCell>
                     <TableCell className="text-right">
                       <Button
@@ -384,7 +382,6 @@ const OrganizationTeamMembers: React.FC = () => {
         </Card>
       )}
       
-      {/* Confirmation Dialog for Member Removal */}
       <Dialog open={!!memberToRemove} onOpenChange={(open) => !open && setMemberToRemove(null)}>
         <DialogContent>
           <DialogHeader>

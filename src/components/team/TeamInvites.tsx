@@ -51,7 +51,24 @@ const TeamInvites: React.FC<TeamInvitesProps> = ({ organization }) => {
         .order("invited_at", { ascending: false });
 
       if (error) throw error;
-      setInvites(data as unknown as Invite[]);
+      
+      const formattedInvites: Invite[] = data.map((invite: any) => ({
+        id: invite.id,
+        email: invite.email,
+        name: invite.name,
+        department: invite.department,
+        organization_id: invite.organization_id,
+        role: invite.role as 'admin' | 'member' | 'client',
+        invited_by: invite.invited_by,
+        invited_at: invite.invited_at,
+        status: invite.status as 'pending' | 'accepted' | 'declined' | 'revoked',
+        token: invite.token,
+        expires_at: invite.expires_at,
+        created_at: invite.created_at,
+        updated_at: invite.updated_at
+      }));
+      
+      setInvites(formattedInvites);
     } catch (error) {
       console.error("Error fetching invites:", error);
       toast.error("Failed to load invitations");

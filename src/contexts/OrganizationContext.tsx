@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { Organization, OrganizationSettings, TeamMember, Invite, Address } from "@/types";
 import { useAuth } from "./AuthContext";
@@ -163,13 +162,17 @@ export const OrganizationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         const formattedInvites: Invite[] = invitesData?.map(invite => ({
           id: invite.id,
           email: invite.email,
-          organizationId: invite.organization_id,
+          name: invite.name,
+          department: invite.department,
+          organization_id: invite.organization_id,
           role: invite.role as 'admin' | 'member' | 'client',
-          invitedBy: invite.invited_by,
-          invitedAt: new Date(invite.invited_at),
+          invited_by: invite.invited_by,
+          invited_at: invite.invited_at,
           status: invite.status as 'pending' | 'accepted' | 'declined',
           token: invite.token,
-          expiresAt: new Date(invite.expires_at),
+          expires_at: invite.expires_at,
+          created_at: invite.created_at,
+          updated_at: invite.updated_at
         })) || [];
 
         setOrganization(org);
@@ -532,13 +535,17 @@ export const OrganizationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       const newInvite: Invite = {
         id: inviteData.id,
         email: inviteData.email,
-        organizationId: inviteData.organization_id,
+        name: inviteData.name,
+        department: inviteData.department,
+        organization_id: inviteData.organization_id,
         role: inviteData.role as 'admin' | 'member' | 'client',
-        invitedBy: inviteData.invited_by,
-        invitedAt: new Date(inviteData.invited_at),
+        invited_by: inviteData.invited_by,
+        invited_at: inviteData.invited_at,
         status: inviteData.status as 'pending' | 'accepted' | 'declined',
         token: inviteData.token,
-        expiresAt: new Date(inviteData.expires_at),
+        expires_at: inviteData.expires_at,
+        created_at: inviteData.created_at,
+        updated_at: inviteData.updated_at
       };
       
       setInvites([...invites, newInvite]);
