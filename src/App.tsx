@@ -3,8 +3,9 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route } from "react-router-dom";
 import NotFound from "./pages/NotFound";
+import Index from "./pages/Index";
 
 // Auth pages
 import Login from "./pages/auth/Login";
@@ -62,8 +63,8 @@ const App = () => (
                         {/* Add more routes for other features */}
                         {/* e.g. <Route path="/tasks" element={<Tasks />} /> */}
                         
-                        {/* Redirect from home to dashboard or login */}
-                        <Route path="/" element={<Navigate to="/dashboard" replace />} />
+                        {/* Root route now points to Index component for proper routing */}
+                        <Route path="/" element={<Index />} />
                         
                         {/* 404 route */}
                         <Route path="*" element={<NotFound />} />

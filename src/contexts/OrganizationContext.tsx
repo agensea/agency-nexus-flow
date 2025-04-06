@@ -18,6 +18,7 @@ interface OrganizationContextType {
   removeMember: (memberId: string) => Promise<void>;
   updateMemberRole: (memberId: string, role: "admin" | "member") => Promise<void>;
   uploadLogo: (file: File) => Promise<string>;
+  refreshOrganization: () => Promise<void>; // Added function
 }
 
 const OrganizationContext = createContext<OrganizationContextType | null>(null);
@@ -30,174 +31,186 @@ export const OrganizationProvider: React.FC<{ children: React.ReactNode }> = ({ 
   const [loading, setLoading] = useState(true);
 
   // Load organization data
-  useEffect(() => {
-    const loadOrganization = async () => {
-      if (!user) {
+  const loadOrganization = async () => {
+    if (!user) {
+      setOrganization(null);
+      setMembers([]);
+      setInvites([]);
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
+    try {
+      console.log("Loading organization for user:", user.id);
+      
+      // Check if user belongs to any organization
+      const { data: teamMemberData, error: teamMemberError } = await supabase
+        .from('team_members')
+        .select('*')
+        .eq('user_id', user.id)
+        .eq('status', 'active')
+        .maybeSingle(); // Changed from single to maybeSingle
+
+      if (teamMemberError && teamMemberError.code !== 'PGRST116') {
+        console.error('Error fetching team member data:', teamMemberError);
+        throw teamMemberError;
+      }
+
+      if (teamMemberData) {
+        console.log("User belongs to organization:", teamMemberData.organization_id);
+        
+        // User belongs to an organization
+        // Fetch organization data
+        const { data: orgData, error: orgError } = await supabase
+          .from('organizations')
+          .select('*')
+          .eq('id', teamMemberData.organization_id)
+          .single();
+
+        if (orgError) {
+          console.error('Error fetching organization data:', orgError);
+          throw orgError;
+        }
+
+        // Fetch organization settings
+        const { data: settingsData, error: settingsError } = await supabase
+          .from('organization_settings')
+          .select('*')
+          .eq('organization_id', teamMemberData.organization_id)
+          .maybeSingle(); // Changed from single to maybeSingle
+
+        if (settingsError && settingsError.code !== 'PGRST116') {
+          console.error('Error fetching organization settings:', settingsError);
+          throw settingsError;
+        }
+
+        // Fetch organization address if exists
+        const { data: addressData, error: addressError } = await supabase
+          .from('organization_addresses')
+          .select('*')
+          .eq('organization_id', teamMemberData.organization_id)
+          .maybeSingle();
+
+        if (addressError && addressError.code !== 'PGRST116') {
+          console.error('Error fetching organization address:', addressError);
+          throw addressError;
+        }
+
+        // Fetch all team members for this organization
+        const { data: membersData, error: membersError } = await supabase
+          .from('team_members')
+          .select('*')
+          .eq('organization_id', teamMemberData.organization_id);
+
+        if (membersError) {
+          console.error('Error fetching team members:', membersError);
+          throw membersError;
+        }
+
+        // Fetch all pending invites for this organization
+        const { data: invitesData, error: invitesError } = await supabase
+          .from('invites')
+          .select('*')
+          .eq('organization_id', teamMemberData.organization_id)
+          .eq('status', 'pending');
+
+        if (invitesError) {
+          console.error('Error fetching invites:', invitesError);
+          throw invitesError;
+        }
+
+        // Format the address
+        const address: Address | undefined = addressData ? {
+          street: addressData.street,
+          city: addressData.city,
+          state: addressData.state,
+          zipCode: addressData.zip_code,
+          country: addressData.country,
+        } : undefined;
+
+        // Format the settings
+        const settings: OrganizationSettings = settingsData ? {
+          allowClientInvites: settingsData.allow_client_invites,
+          allowTeamInvites: settingsData.allow_team_invites,
+          defaultTaskView: settingsData.default_task_view as 'list' | 'board' | 'calendar',
+          color: settingsData.color,
+        } : {
+          allowClientInvites: true,
+          allowTeamInvites: true,
+          defaultTaskView: 'board',
+          color: '#6366f1',
+        };
+
+        // Create the organization object
+        const org: Organization = {
+          id: orgData.id,
+          name: orgData.name,
+          logo: orgData.logo,
+          email: orgData.email,
+          phone: orgData.phone,
+          taxId: orgData.tax_id,
+          currency: orgData.currency,
+          address,
+          createdById: orgData.created_by_id,
+          createdAt: new Date(orgData.created_at),
+          updatedAt: new Date(orgData.updated_at),
+          plan: 'free', // Default plan, can be updated later
+          settings: settings,
+        };
+
+        // Format team members
+        const formattedMembers: TeamMember[] = membersData?.map(member => ({
+          id: member.id,
+          userId: member.user_id,
+          organizationId: member.organization_id,
+          role: member.role as 'owner' | 'admin' | 'member',
+          invitedBy: member.invited_by,
+          invitedAt: new Date(member.invited_at),
+          joinedAt: member.joined_at ? new Date(member.joined_at) : undefined,
+          status: member.status as 'invited' | 'active' | 'inactive',
+          permissions: [], // Placeholder, can be expanded later
+        })) || [];
+
+        // Format invites
+        const formattedInvites: Invite[] = invitesData?.map(invite => ({
+          id: invite.id,
+          email: invite.email,
+          organizationId: invite.organization_id,
+          role: invite.role as 'admin' | 'member' | 'client',
+          invitedBy: invite.invited_by,
+          invitedAt: new Date(invite.invited_at),
+          status: invite.status as 'pending' | 'accepted' | 'declined',
+          token: invite.token,
+          expiresAt: new Date(invite.expires_at),
+        })) || [];
+
+        setOrganization(org);
+        setMembers(formattedMembers);
+        setInvites(formattedInvites);
+        console.log("Organization loaded successfully:", org.name);
+      } else {
+        console.log("User doesn't belong to any organization yet");
+        // User doesn't belong to any organization yet
         setOrganization(null);
         setMembers([]);
         setInvites([]);
-        setLoading(false);
-        return;
       }
+    } catch (error: any) {
+      console.error("Failed to load organization:", error);
+      toast.error("Failed to load organization data");
+    } finally {
+      setLoading(false);
+    }
+  };
 
-      setLoading(true);
-      try {
-        // Check if user belongs to any organization
-        const { data: teamMemberData, error: teamMemberError } = await supabase
-          .from('team_members')
-          .select('*')
-          .eq('user_id', user.id)
-          .eq('status', 'active')
-          .single();
+  // Add function to refresh organization data
+  const refreshOrganization = async () => {
+    await loadOrganization();
+  };
 
-        if (teamMemberError && teamMemberError.code !== 'PGRST116') {
-          console.error('Error fetching team member data:', teamMemberError);
-          throw teamMemberError;
-        }
-
-        if (teamMemberData) {
-          // User belongs to an organization
-          // Fetch organization data
-          const { data: orgData, error: orgError } = await supabase
-            .from('organizations')
-            .select('*')
-            .eq('id', teamMemberData.organization_id)
-            .single();
-
-          if (orgError) {
-            console.error('Error fetching organization data:', orgError);
-            throw orgError;
-          }
-
-          // Fetch organization settings
-          const { data: settingsData, error: settingsError } = await supabase
-            .from('organization_settings')
-            .select('*')
-            .eq('organization_id', teamMemberData.organization_id)
-            .single();
-
-          if (settingsError && settingsError.code !== 'PGRST116') {
-            console.error('Error fetching organization settings:', settingsError);
-            throw settingsError;
-          }
-
-          // Fetch organization address if exists
-          const { data: addressData, error: addressError } = await supabase
-            .from('organization_addresses')
-            .select('*')
-            .eq('organization_id', teamMemberData.organization_id)
-            .maybeSingle();
-
-          if (addressError && addressError.code !== 'PGRST116') {
-            console.error('Error fetching organization address:', addressError);
-            throw addressError;
-          }
-
-          // Fetch all team members for this organization
-          const { data: membersData, error: membersError } = await supabase
-            .from('team_members')
-            .select('*')
-            .eq('organization_id', teamMemberData.organization_id);
-
-          if (membersError) {
-            console.error('Error fetching team members:', membersError);
-            throw membersError;
-          }
-
-          // Fetch all pending invites for this organization
-          const { data: invitesData, error: invitesError } = await supabase
-            .from('invites')
-            .select('*')
-            .eq('organization_id', teamMemberData.organization_id)
-            .eq('status', 'pending');
-
-          if (invitesError) {
-            console.error('Error fetching invites:', invitesError);
-            throw invitesError;
-          }
-
-          // Format the address
-          const address: Address | undefined = addressData ? {
-            street: addressData.street,
-            city: addressData.city,
-            state: addressData.state,
-            zipCode: addressData.zip_code,
-            country: addressData.country,
-          } : undefined;
-
-          // Format the settings
-          const settings: OrganizationSettings = settingsData ? {
-            allowClientInvites: settingsData.allow_client_invites,
-            allowTeamInvites: settingsData.allow_team_invites,
-            defaultTaskView: settingsData.default_task_view as 'list' | 'board' | 'calendar',
-            color: settingsData.color,
-          } : {
-            allowClientInvites: true,
-            allowTeamInvites: true,
-            defaultTaskView: 'board',
-            color: '#6366f1',
-          };
-
-          // Create the organization object
-          const org: Organization = {
-            id: orgData.id,
-            name: orgData.name,
-            logo: orgData.logo,
-            email: orgData.email,
-            phone: orgData.phone,
-            taxId: orgData.tax_id,
-            currency: orgData.currency,
-            address,
-            createdById: orgData.created_by_id,
-            createdAt: new Date(orgData.created_at),
-            updatedAt: new Date(orgData.updated_at),
-            plan: 'free', // Default plan, can be updated later
-            settings: settings,
-          };
-
-          // Format team members
-          const formattedMembers: TeamMember[] = membersData?.map(member => ({
-            id: member.id,
-            userId: member.user_id,
-            organizationId: member.organization_id,
-            role: member.role as 'owner' | 'admin' | 'member',
-            invitedBy: member.invited_by,
-            invitedAt: new Date(member.invited_at),
-            joinedAt: member.joined_at ? new Date(member.joined_at) : undefined,
-            status: member.status as 'invited' | 'active' | 'inactive',
-            permissions: [], // Placeholder, can be expanded later
-          })) || [];
-
-          // Format invites
-          const formattedInvites: Invite[] = invitesData?.map(invite => ({
-            id: invite.id,
-            email: invite.email,
-            organizationId: invite.organization_id,
-            role: invite.role as 'admin' | 'member' | 'client',
-            invitedBy: invite.invited_by,
-            invitedAt: new Date(invite.invited_at),
-            status: invite.status as 'pending' | 'accepted' | 'declined',
-            token: invite.token,
-            expiresAt: new Date(invite.expires_at),
-          })) || [];
-
-          setOrganization(org);
-          setMembers(formattedMembers);
-          setInvites(formattedInvites);
-        } else {
-          // User doesn't belong to any organization yet
-          setOrganization(null);
-          setMembers([]);
-          setInvites([]);
-        }
-      } catch (error: any) {
-        console.error("Failed to load organization:", error);
-        toast.error("Failed to load organization data");
-      } finally {
-        setLoading(false);
-      }
-    };
-
+  // Load organization data when user changes
+  useEffect(() => {
     loadOrganization();
   }, [user]);
 
@@ -207,6 +220,8 @@ export const OrganizationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     
     setLoading(true);
     try {
+      console.log("Creating organization:", name);
+      
       // Insert new organization
       const { data: orgData, error: orgError } = await supabase
         .from('organizations')
@@ -217,7 +232,12 @@ export const OrganizationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         .select()
         .single();
         
-      if (orgError) throw orgError;
+      if (orgError) {
+        console.error("Error creating organization:", orgError);
+        throw orgError;
+      }
+      
+      console.log("Organization created:", orgData);
       
       // Insert organization settings
       const { error: settingsError } = await supabase
@@ -230,7 +250,10 @@ export const OrganizationProvider: React.FC<{ children: React.ReactNode }> = ({ 
           color: '#6366f1'
         });
         
-      if (settingsError) throw settingsError;
+      if (settingsError) {
+        console.error("Error creating organization settings:", settingsError);
+        throw settingsError;
+      }
       
       // Insert the user as the owner of the organization
       const { error: memberError } = await supabase
@@ -244,7 +267,10 @@ export const OrganizationProvider: React.FC<{ children: React.ReactNode }> = ({ 
           status: 'active'
         });
         
-      if (memberError) throw memberError;
+      if (memberError) {
+        console.error("Error creating team member:", memberError);
+        throw memberError;
+      }
       
       // Create the formatted organization object
       const settings: OrganizationSettings = {
@@ -285,7 +311,12 @@ export const OrganizationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       setOrganization(newOrg);
       setMembers([ownerMember]);
       
+      console.log("Organization setup complete:", newOrg.name);
       toast.success("Organization created successfully");
+      
+      // Trigger a refresh to ensure we have the latest data
+      setTimeout(() => refreshOrganization(), 500);
+      
     } catch (error: any) {
       console.error("Error creating organization:", error);
       toast.error(error.message || "Failed to create organization");
@@ -674,6 +705,7 @@ export const OrganizationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         removeMember,
         updateMemberRole,
         uploadLogo,
+        refreshOrganization, // Add the new function to the context
       }}
     >
       {children}
