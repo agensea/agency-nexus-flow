@@ -3,7 +3,7 @@ import * as React from "react"
 import * as NavigationMenuPrimitive from "@radix-ui/react-navigation-menu"
 import { cva } from "class-variance-authority"
 import { ChevronDown } from "lucide-react"
-import Link from "next/link"
+import { Link } from "react-router-dom"
 
 import { cn } from "@/lib/utils"
 
@@ -143,10 +143,8 @@ const MainNavigation = () => {
       <NavigationMenuList>
         {navItems.map((item) => (
           <NavigationMenuItem key={item.name}>
-            <Link href={item.href} passHref legacyBehavior>
-              <NavigationMenuLink className={navigationMenuTriggerStyle()}>
-                {item.name}
-              </NavigationMenuLink>
+            <Link to={item.href} className={navigationMenuTriggerStyle()}>
+              {item.name}
             </Link>
           </NavigationMenuItem>
         ))}

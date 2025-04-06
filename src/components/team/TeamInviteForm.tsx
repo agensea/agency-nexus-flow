@@ -93,11 +93,13 @@ const TeamInviteForm: React.FC<{ onSuccess?: () => void }> = ({ onSuccess }) => 
 
         if (membersError) throw membersError;
 
-        const activeMembers = members ? members.filter(m => m.status === "active") : [];
-        if (activeMembers.length > 0) {
-          toast.error("This user is already a team member");
-          setLoading(false);
-          return;
+        if (members && members.length > 0) {
+          const activeMembers = members.filter(m => m.status === "active");
+          if (activeMembers.length > 0) {
+            toast.error("This user is already a team member");
+            setLoading(false);
+            return;
+          }
         }
       }
 
