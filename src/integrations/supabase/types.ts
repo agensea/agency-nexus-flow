@@ -191,6 +191,7 @@ export type Database = {
           department: string | null
           id: string
           name: string
+          phone: string | null
           role: string | null
           updated_at: string
         }
@@ -201,6 +202,7 @@ export type Database = {
           department?: string | null
           id: string
           name: string
+          phone?: string | null
           role?: string | null
           updated_at?: string
         }
@@ -211,6 +213,7 @@ export type Database = {
           department?: string | null
           id?: string
           name?: string
+          phone?: string | null
           role?: string | null
           updated_at?: string
         }
