@@ -159,21 +159,23 @@ export const OrganizationProvider: React.FC<{ children: React.ReactNode }> = ({ 
           permissions: [],
         })) || [];
 
-        const formattedInvites: Invite[] = invitesData?.map(invite => ({
-          id: invite.id,
-          email: invite.email,
-          name: invite.name || null,
-          department: invite.department || null,
-          organization_id: invite.organization_id,
-          role: invite.role as 'admin' | 'member' | 'client',
-          invited_by: invite.invited_by,
-          invited_at: invite.invited_at,
-          status: invite.status as 'pending' | 'accepted' | 'declined' | 'revoked',
-          token: invite.token,
-          expires_at: invite.expires_at,
-          created_at: invite.created_at,
-          updated_at: invite.updated_at
-        })) || [];
+        const formattedInvites: Invite[] = invitesData?.map(invite => {
+          return {
+            id: invite.id,
+            email: invite.email,
+            name: invite.name || null,
+            department: invite.department || null,
+            organization_id: invite.organization_id,
+            role: invite.role as 'admin' | 'member' | 'client',
+            invited_by: invite.invited_by,
+            invited_at: invite.invited_at,
+            status: invite.status as 'pending' | 'accepted' | 'declined' | 'revoked',
+            token: invite.token,
+            expires_at: invite.expires_at,
+            created_at: invite.created_at,
+            updated_at: invite.updated_at
+          };
+        }) || [];
 
         setOrganization(org);
         setMembers(formattedMembers);
@@ -520,9 +522,9 @@ export const OrganizationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         .from('invites')
         .insert({
           email,
-          organization_id: organization.id,
+          organization_id: organization!.id,
           role,
-          invited_by: user.id,
+          invited_by: user!.id,
           status: 'pending',
           token,
           expires_at: expiresAt.toISOString(),
@@ -537,8 +539,8 @@ export const OrganizationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       const newInvite: Invite = {
         id: inviteData.id,
         email: inviteData.email,
-        name: inviteData.name,
-        department: inviteData.department,
+        name: inviteData.name || null,
+        department: inviteData.department || null,
         organization_id: inviteData.organization_id,
         role: inviteData.role as 'admin' | 'member' | 'client',
         invited_by: inviteData.invited_by,

@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useForm } from "react-hook-form";
@@ -27,7 +28,7 @@ interface InviteData extends Invite {
   };
   inviter?: {
     name: string;
-  };
+  } | null;
 }
 
 const formSchema = z.object({
@@ -89,9 +90,11 @@ const InviteSignup: React.FC = () => {
           return;
         }
 
-        const inviter = inviteData.inviter && typeof inviteData.inviter === 'object' && 'name' in inviteData.inviter 
-          ? { name: inviteData.inviter.name } 
-          : undefined;
+        // Convert inviter to match our expected type
+        let processedInviter = null;
+        if (inviteData.inviter && typeof inviteData.inviter === 'object' && 'name' in inviteData.inviter) {
+          processedInviter = { name: inviteData.inviter.name };
+        }
 
         const typedInvite: InviteData = {
           ...inviteData,
@@ -109,7 +112,7 @@ const InviteSignup: React.FC = () => {
           created_at: inviteData.created_at,
           updated_at: inviteData.updated_at,
           organization: inviteData.organization,
-          inviter
+          inviter: processedInviter
         };
 
         if (typedInvite.status !== "pending") {

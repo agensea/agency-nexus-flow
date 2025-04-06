@@ -66,7 +66,7 @@ export interface Invite {
   };
   inviter?: {
     name: string;
-  };
+  } | null;
 }
 
 // Task types

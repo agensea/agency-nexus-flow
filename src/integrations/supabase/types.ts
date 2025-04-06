@@ -12,11 +12,13 @@ export type Database = {
       invites: {
         Row: {
           created_at: string
+          department: string | null
           email: string
           expires_at: string
           id: string
           invited_at: string
           invited_by: string
+          name: string | null
           organization_id: string
           role: string
           status: string
@@ -25,11 +27,13 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          department?: string | null
           email: string
           expires_at: string
           id?: string
           invited_at?: string
           invited_by: string
+          name?: string | null
           organization_id: string
           role: string
           status: string
@@ -38,11 +42,13 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          department?: string | null
           email?: string
           expires_at?: string
           id?: string
           invited_at?: string
           invited_by?: string
+          name?: string | null
           organization_id?: string
           role?: string
           status?: string
