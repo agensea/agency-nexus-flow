@@ -72,23 +72,25 @@ const TeamInviteForm: React.FC<{ onSuccess?: () => void }> = ({ onSuccess }) => 
         return;
       }
       
-      // Check if user is already a member - using explicit type annotation to avoid deep instantiation
+      // Check if user is already a member - using explicit type annotation
+      type ProfileResult = { id: string };
       const { data: existingUser, error: checkUserError } = await supabase
         .from("profiles")
         .select("id")
         .eq("email", values.email)
-        .maybeSingle();
+        .maybeSingle() as { data: ProfileResult | null, error: any };
         
       if (checkUserError && checkUserError.code !== "PGRST116") throw checkUserError;
       
       if (existingUser) {
-        // Using explicit type annotation to avoid deep instantiation
+        // Using explicit type annotation
+        type TeamMemberResult = { id: string, status: string };
         const { data: existingMember, error: checkMemberError } = await supabase
           .from("team_members")
           .select("*")
           .eq("user_id", existingUser.id)
           .eq("organization_id", organization.id)
-          .maybeSingle();
+          .maybeSingle() as { data: TeamMemberResult | null, error: any };
           
         if (checkMemberError && checkMemberError.code !== "PGRST116") throw checkMemberError;
         

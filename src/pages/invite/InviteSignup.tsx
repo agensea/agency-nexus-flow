@@ -92,7 +92,10 @@ const InviteSignup: React.FC = () => {
 
         // Convert inviter to match our expected type
         let processedInviter = null;
-        if (inviteData.inviter && typeof inviteData.inviter === 'object' && inviteData.inviter !== null && 'name' in inviteData.inviter) {
+        if (inviteData.inviter && 
+            typeof inviteData.inviter === 'object' && 
+            inviteData.inviter !== null && 
+            'name' in inviteData.inviter) {
           processedInviter = { name: inviteData.inviter.name };
         }
 
