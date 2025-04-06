@@ -11,6 +11,8 @@ import Login from "./pages/auth/Login";
 import Register from "./pages/auth/Register";
 import VerificationSent from "./pages/auth/VerificationSent";
 import ForgotPassword from "./pages/auth/ForgotPassword";
+import EmailVerification from "./pages/auth/EmailVerification";
+import ResetPassword from "./pages/auth/ResetPassword";
 
 // Main app pages
 import Dashboard from "./pages/Dashboard";
@@ -46,6 +48,8 @@ const App = () => (
                         <Route path="/auth/register" element={<Register />} />
                         <Route path="/auth/verification-sent" element={<VerificationSent />} />
                         <Route path="/auth/forgot-password" element={<ForgotPassword />} />
+                        <Route path="/auth/verify" element={<EmailVerification />} />
+                        <Route path="/auth/reset-password" element={<ResetPassword />} />
                         
                         {/* Organization routes */}
                         <Route path="/organization/setup" element={<OrganizationSetup />} />

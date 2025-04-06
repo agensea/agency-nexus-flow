@@ -2,6 +2,8 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { User } from "@/types";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
+import { Session } from "@supabase/supabase-js";
 
 interface AuthContextType {
   user: User | null;
@@ -16,71 +18,73 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
-// Mock authentication functions for demo
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
+  const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Mock user data
-  const mockUsers = [
-    {
-      id: "user1",
-      email: "demo@agencyos.com",
-      password: "password", // In a real app, this would be hashed
-      name: "Demo User",
-      avatar: undefined,
-      role: "admin" as const,
-      createdAt: new Date(),
-    },
-  ];
-
-  // Check if user is logged in on mount
+  // Set up auth state listener
   useEffect(() => {
-    const checkAuth = async () => {
-      try {
-        const savedAuth = localStorage.getItem("agencyos_auth");
-        if (savedAuth) {
-          const parsedAuth = JSON.parse(savedAuth);
-          setUser(parsedAuth.user);
+    // Set up auth state listener FIRST
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (event, session) => {
+        setSession(session);
+        if (session?.user) {
+          const userData: User = {
+            id: session.user.id,
+            email: session.user.email || '',
+            name: session.user.user_metadata.name || session.user.email?.split('@')[0] || '',
+            avatar: session.user.user_metadata.avatar_url,
+            role: session.user.user_metadata.role || 'member',
+            createdAt: new Date(session.user.created_at),
+          };
+          setUser(userData);
+        } else {
+          setUser(null);
         }
-      } catch (error) {
-        console.error("Failed to restore auth state:", error);
-      } finally {
-        setLoading(false);
       }
-    };
+    );
 
-    checkAuth();
+    // THEN check for existing session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      if (session?.user) {
+        const userData: User = {
+          id: session.user.id,
+          email: session.user.email || '',
+          name: session.user.user_metadata.name || session.user.email?.split('@')[0] || '',
+          avatar: session.user.user_metadata.avatar_url,
+          role: session.user.user_metadata.role || 'member',
+          createdAt: new Date(session.user.created_at),
+        };
+        setUser(userData);
+      }
+      setLoading(false);
+    });
+
+    return () => {
+      subscription?.unsubscribe();
+    };
   }, []);
 
   // Sign up function
   const signUp = async (email: string, password: string, name: string) => {
     setLoading(true);
     try {
-      // Mock API call
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-      
-      // Check if user already exists
-      if (mockUsers.some((u) => u.email === email)) {
-        throw new Error("User already exists");
-      }
-
-      const newUser = {
-        id: `user${Date.now()}`,
+      const { error } = await supabase.auth.signUp({
         email,
-        name,
-        role: "admin" as const,
-        createdAt: new Date(),
-        avatar: undefined, // Add avatar property which was missing
-      };
-
-      // In a real app, we would make an API call here
-      mockUsers.push({ ...newUser, password });
+        password,
+        options: {
+          data: {
+            name,
+          },
+          emailRedirectTo: `${window.location.origin}/auth/verify`,
+        },
+      });
       
-      // Send verification email (mocked)
-      console.log(`Verification email sent to ${email}`);
+      if (error) throw error;
+      
       toast.success("Verification email sent! Please check your inbox.");
-      
       setLoading(false);
     } catch (error: any) {
       setLoading(false);
@@ -93,21 +97,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const signIn = async (email: string, password: string) => {
     setLoading(true);
     try {
-      // Mock API call
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      const { error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
       
-      // Find user
-      const foundUser = mockUsers.find((u) => u.email === email && u.password === password);
-      if (!foundUser) {
-        throw new Error("Invalid email or password");
-      }
-
-      // Create user object without password
-      const { password: _, ...userWithoutPassword } = foundUser;
-      
-      // Save to state and localStorage
-      setUser(userWithoutPassword);
-      localStorage.setItem("agencyos_auth", JSON.stringify({ user: userWithoutPassword }));
+      if (error) throw error;
       
       toast.success("Signed in successfully");
       setLoading(false);
@@ -122,12 +117,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const signOut = async () => {
     setLoading(true);
     try {
-      // Mock API call
-      await new Promise((resolve) => setTimeout(resolve, 500));
+      const { error } = await supabase.auth.signOut();
       
-      // Clear state and localStorage
-      setUser(null);
-      localStorage.removeItem("agencyos_auth");
+      if (error) throw error;
       
       toast.success("Signed out successfully");
       setLoading(false);
@@ -142,20 +134,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const verifyEmail = async (token: string): Promise<boolean> => {
     setLoading(true);
     try {
-      // Mock API call
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-      
-      // In a real app, we would verify the token with the backend
-      const isValid = token === "valid-token";
-      
-      if (isValid) {
-        toast.success("Email verified successfully");
-      } else {
-        toast.error("Invalid or expired verification token");
-      }
-      
+      // In Supabase, verification is handled automatically via the redirect URL
+      // This function is kept for API consistency, but doesn't do anything special
       setLoading(false);
-      return isValid;
+      return true;
     } catch (error: any) {
       setLoading(false);
       toast.error(error.message || "Failed to verify email");
@@ -167,19 +149,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const requestPasswordReset = async (email: string) => {
     setLoading(true);
     try {
-      // Mock API call
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/auth/reset-password`,
+      });
       
-      // Check if user exists
-      const userExists = mockUsers.some((u) => u.email === email);
-      if (!userExists) {
-        throw new Error("No account found with this email");
-      }
+      if (error) throw error;
       
-      // In a real app, we would send a reset email here
-      console.log(`Password reset email sent to ${email}`);
       toast.success("Password reset email sent! Please check your inbox.");
-      
       setLoading(false);
     } catch (error: any) {
       setLoading(false);
@@ -192,20 +168,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const resetPassword = async (token: string, password: string): Promise<boolean> => {
     setLoading(true);
     try {
-      // Mock API call
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      // In Supabase, the token is handled automatically via the URL
+      const { error } = await supabase.auth.updateUser({
+        password: password,
+      });
       
-      // In a real app, we would verify the token and update the password
-      const isValid = token === "valid-token";
+      if (error) throw error;
       
-      if (isValid) {
-        toast.success("Password reset successfully");
-      } else {
-        toast.error("Invalid or expired reset token");
-      }
-      
+      toast.success("Password reset successfully");
       setLoading(false);
-      return isValid;
+      return true;
     } catch (error: any) {
       setLoading(false);
       toast.error(error.message || "Failed to reset password");
