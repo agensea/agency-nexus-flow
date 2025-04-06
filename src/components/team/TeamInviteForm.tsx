@@ -72,7 +72,7 @@ const TeamInviteForm: React.FC<{ onSuccess?: () => void }> = ({ onSuccess }) => 
         return;
       }
       
-      // Check if user is already a member
+      // Check if user is already a member - using explicit type annotation to avoid deep instantiation
       const { data: existingUser, error: checkUserError } = await supabase
         .from("profiles")
         .select("id")
@@ -82,6 +82,7 @@ const TeamInviteForm: React.FC<{ onSuccess?: () => void }> = ({ onSuccess }) => 
       if (checkUserError && checkUserError.code !== "PGRST116") throw checkUserError;
       
       if (existingUser) {
+        // Using explicit type annotation to avoid deep instantiation
         const { data: existingMember, error: checkMemberError } = await supabase
           .from("team_members")
           .select("*")
