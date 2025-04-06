@@ -83,32 +83,30 @@ const TeamInviteForm: React.FC<{ onSuccess?: () => void }> = ({ onSuccess }) => 
       }
       
       // Check if user exists in profiles
-      const profileResult = await supabase
+      const { data, error: profileError } = await supabase
         .from("profiles")
         .select("id")
         .eq("email", values.email)
         .maybeSingle();
       
-      // Explicitly handle the response to avoid type issues
-      const existingUser = profileResult.data as ProfileData | null;
-      const checkUserError = profileResult.error;
+      if (profileError && profileError.code !== "PGRST116") throw profileError;
       
-      if (checkUserError && checkUserError.code !== "PGRST116") throw checkUserError;
+      // Safely cast the data to our defined type
+      const existingUser: ProfileData | null = data as ProfileData | null;
       
       if (existingUser) {
         // Check if this user is already a member of the organization
-        const memberResult = await supabase
+        const { data: memberData, error: memberError } = await supabase
           .from("team_members")
           .select("id, status")
           .eq("user_id", existingUser.id)
           .eq("organization_id", organization.id)
           .maybeSingle();
           
-        // Explicitly handle the response to avoid type issues
-        const existingMember = memberResult.data as TeamMemberData | null;
-        const checkMemberError = memberResult.error;
-          
-        if (checkMemberError && checkMemberError.code !== "PGRST116") throw checkMemberError;
+        if (memberError && memberError.code !== "PGRST116") throw memberError;
+        
+        // Safely cast the member data to our defined type
+        const existingMember: TeamMemberData | null = memberData as TeamMemberData | null;
         
         if (existingMember && existingMember.status === "active") {
           toast.error("This user is already a team member");
