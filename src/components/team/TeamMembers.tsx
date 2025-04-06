@@ -43,6 +43,14 @@ import {
 import { toast } from "sonner";
 import { format } from "date-fns";
 
+interface Profile {
+  id: string;
+  name: string;
+  avatar_url: string | null;
+  department: string | null;
+  email: string;
+}
+
 interface TeamMember {
   id: string;
   user_id: string;
@@ -51,13 +59,7 @@ interface TeamMember {
   role: string;
   status: string;
   joined_at: string;
-  profiles: {
-    id: string;
-    name: string;
-    avatar_url: string | null;
-    department: string | null;
-    email: string;
-  }
+  profiles: Profile;
 }
 
 interface TeamMembersProps {
@@ -79,13 +81,16 @@ const TeamMembers: React.FC<TeamMembersProps> = ({ organization, userRole }) => 
   const isAdminOrOwner = userRole === "admin" || userRole === "owner";
 
   useEffect(() => {
-    fetchTeamMembers();
-  }, [organization.id]);
+    if (organization?.id) {
+      fetchTeamMembers();
+    }
+  }, [organization?.id]);
 
   const fetchTeamMembers = async () => {
     setLoading(true);
     try {
-      // Fetch team members with profile information using the new relationship
+      // Fetch team members with profile information using the proper relationship
+      console.log("Fetching team members for organization:", organization.id);
       const { data, error } = await supabase
         .from("team_members")
         .select(`
@@ -95,9 +100,14 @@ const TeamMembers: React.FC<TeamMembersProps> = ({ organization, userRole }) => 
         .eq("organization_id", organization.id)
         .eq("status", "active");
 
-      if (error) throw error;
+      if (error) {
+        console.error("Error fetching team members:", error);
+        throw error;
+      }
 
-      // Properly map the data
+      console.log("Team members data:", data);
+      
+      // Map the data ensuring we handle null profile info
       const mappedMembers = data?.map((member: any) => ({
         ...member,
         profiles: member.profiles || { 
