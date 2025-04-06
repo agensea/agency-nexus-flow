@@ -30,6 +30,19 @@ const profileFormSchema = z.object({
 
 type ProfileFormValues = z.infer<typeof profileFormSchema>;
 
+// Define the expected profile structure
+interface Profile {
+  id: string;
+  name: string;
+  avatar_url: string | null;
+  role: string;
+  phone?: string | null;
+  birthdate?: string | null;
+  department?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 const ProfileForm = () => {
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
@@ -65,17 +78,19 @@ const ProfileForm = () => {
         const userEmail = user.email || "";
 
         if (data) {
+          const profile = data as Profile;
+          
           form.reset({
-            name: data.name || "",
+            name: profile.name || "",
             email: userEmail,
-            phone: data.phone || "",
-            birthdate: data.birthdate 
-              ? format(new Date(data.birthdate), "yyyy-MM-dd") 
+            phone: profile.phone || "",
+            birthdate: profile.birthdate 
+              ? format(new Date(profile.birthdate), "yyyy-MM-dd") 
               : "",
-            department: data.department || "",
+            department: profile.department || "",
           });
-          setAvatarUrl(data.avatar_url);
-          setRole(data.role || "member");
+          setAvatarUrl(profile.avatar_url);
+          setRole(profile.role || "member");
         }
       } catch (error) {
         console.error("Error fetching profile", error);
