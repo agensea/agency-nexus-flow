@@ -18,7 +18,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import ProfileAvatar from "./ProfileAvatar";
-import { format } from "date-fns";
+import { format, parseISO } from "date-fns";
 
 const profileFormSchema = z.object({
   name: z.string().min(2, { message: "Name must be at least 2 characters." }),
@@ -112,7 +112,7 @@ const ProfileForm = () => {
         id: user.id,
         name: values.name,
         phone: values.phone || null,
-        birthdate: values.birthdate ? new Date(values.birthdate).toISOString() : null,
+        birthdate: values.birthdate ? new Date(values.birthdate).toISOString().split('T')[0] : null,
         department: values.department || null,
         updated_at: new Date().toISOString(),
       };
