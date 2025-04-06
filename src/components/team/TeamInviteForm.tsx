@@ -35,30 +35,6 @@ const formSchema = z.object({
 
 type FormValues = z.infer<typeof formSchema>;
 
-// Define simple interface for the invite query response
-interface ExistingInviteResponse {
-  data: { id: string } | null;
-  error: any;
-}
-
-// Define simple interface for the profile query response
-interface ProfileQueryResponse {
-  data: { id: string } | null;
-  error: any;
-}
-
-// Define simple interface for the member query response
-interface MemberQueryResponse {
-  data: { id: string; status: string } | null;
-  error: any;
-}
-
-// Define simple interface for the invite insertion response
-interface InviteInsertResponse {
-  data: { id: string } | null;
-  error: any;
-}
-
 const TeamInviteForm: React.FC<{ onSuccess?: () => void }> = ({ onSuccess }) => {
   const { organization } = useOrganization();
   const { user } = useAuth();
@@ -82,21 +58,17 @@ const TeamInviteForm: React.FC<{ onSuccess?: () => void }> = ({ onSuccess }) => 
       // Check for existing pending invites
       const existingInviteQuery = await supabase
         .from("invites")
-        .select("*")
+        .select("id")
         .eq("email", values.email)
         .eq("organization_id", organization.id)
         .eq("status", "pending")
         .maybeSingle();
 
-      // Define variables for clarity and to avoid deep type instantiation
-      const existingInviteData = existingInviteQuery.data;
-      const existingInviteError = existingInviteQuery.error;
-
-      if (existingInviteError && existingInviteError.code !== "PGRST116") {
-        throw existingInviteError;
+      if (existingInviteQuery.error && existingInviteQuery.error.code !== "PGRST116") {
+        throw existingInviteQuery.error;
       }
 
-      if (existingInviteData) {
+      if (existingInviteQuery.data) {
         toast.error("This email has already been invited");
         setLoading(false);
         return;
@@ -109,35 +81,25 @@ const TeamInviteForm: React.FC<{ onSuccess?: () => void }> = ({ onSuccess }) => 
         .eq("email", values.email)
         .maybeSingle();
 
-      // Define variables for clarity
-      const profileData = profileQuery.data;
-      const profileError = profileQuery.error;
-
-      if (profileError && profileError.code !== "PGRST116") {
-        throw profileError;
+      if (profileQuery.error && profileQuery.error.code !== "PGRST116") {
+        throw profileQuery.error;
       }
 
       // If user exists, check if they're already a team member
-      let existingUser = null;
-      if (profileData) {
-        existingUser = { id: profileData.id };
-
+      let existingUserId = profileQuery.data?.id;
+      if (existingUserId) {
         const memberQuery = await supabase
           .from("team_members")
           .select("id, status")
-          .eq("user_id", existingUser.id)
+          .eq("user_id", existingUserId)
           .eq("organization_id", organization.id)
           .maybeSingle();
 
-        // Define variables for clarity
-        const memberData = memberQuery.data;
-        const memberError = memberQuery.error;
-
-        if (memberError && memberError.code !== "PGRST116") {
-          throw memberError;
+        if (memberQuery.error && memberQuery.error.code !== "PGRST116") {
+          throw memberQuery.error;
         }
 
-        if (memberData && memberData.status === "active") {
+        if (memberQuery.data && memberQuery.data.status === "active") {
           toast.error("This user is already a team member");
           setLoading(false);
           return;
@@ -167,17 +129,13 @@ const TeamInviteForm: React.FC<{ onSuccess?: () => void }> = ({ onSuccess }) => 
         .select()
         .single();
 
-      // Define variables for clarity
-      const insertedInvite = inviteQuery.data;
-      const insertError = inviteQuery.error;
-
-      if (insertError) {
-        throw insertError;
+      if (inviteQuery.error) {
+        throw inviteQuery.error;
       }
 
       // Send the invite email
       const sendResponse = await supabase.functions.invoke("send-invite", {
-        body: { inviteId: insertedInvite.id },
+        body: { inviteId: inviteQuery.data.id },
       });
 
       if (sendResponse.error) {
