@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { 
@@ -55,8 +56,8 @@ const TeamInvites: React.FC<TeamInvitesProps> = ({ organization }) => {
       const formattedInvites: Invite[] = data.map((invite: any) => ({
         id: invite.id,
         email: invite.email,
-        name: invite.name,
-        department: invite.department,
+        name: invite.name || null,
+        department: invite.department || null,
         organization_id: invite.organization_id,
         role: invite.role as 'admin' | 'member' | 'client',
         invited_by: invite.invited_by,

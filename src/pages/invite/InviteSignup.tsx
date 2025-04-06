@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useForm } from "react-hook-form";
@@ -90,25 +89,28 @@ const InviteSignup: React.FC = () => {
           return;
         }
 
-        // Transform to our expected type
-        const typedInvite = {
+        const inviter = inviteData.inviter && typeof inviteData.inviter === 'object' && 'name' in inviteData.inviter 
+          ? { name: inviteData.inviter.name } 
+          : undefined;
+
+        const typedInvite: InviteData = {
           ...inviteData,
           id: inviteData.id,
           email: inviteData.email,
-          name: inviteData.name,
-          department: inviteData.department,
+          name: inviteData.name || null,
+          department: inviteData.department || null,
           organization_id: inviteData.organization_id,
-          role: inviteData.role,
+          role: inviteData.role as 'admin' | 'member' | 'client',
           invited_by: inviteData.invited_by,
           invited_at: inviteData.invited_at,
-          status: inviteData.status,
+          status: inviteData.status as 'pending' | 'accepted' | 'declined' | 'revoked',
           token: inviteData.token,
           expires_at: inviteData.expires_at,
           created_at: inviteData.created_at,
           updated_at: inviteData.updated_at,
           organization: inviteData.organization,
-          inviter: inviteData.inviter
-        } as InviteData;
+          inviter
+        };
 
         if (typedInvite.status !== "pending") {
           setError(`This invitation has already been ${typedInvite.status}`);

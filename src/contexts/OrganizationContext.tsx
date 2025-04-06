@@ -162,13 +162,13 @@ export const OrganizationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         const formattedInvites: Invite[] = invitesData?.map(invite => ({
           id: invite.id,
           email: invite.email,
-          name: invite.name,
-          department: invite.department,
+          name: invite.name || null,
+          department: invite.department || null,
           organization_id: invite.organization_id,
           role: invite.role as 'admin' | 'member' | 'client',
           invited_by: invite.invited_by,
           invited_at: invite.invited_at,
-          status: invite.status as 'pending' | 'accepted' | 'declined',
+          status: invite.status as 'pending' | 'accepted' | 'declined' | 'revoked',
           token: invite.token,
           expires_at: invite.expires_at,
           created_at: invite.created_at,
@@ -525,7 +525,9 @@ export const OrganizationProvider: React.FC<{ children: React.ReactNode }> = ({ 
           invited_by: user.id,
           status: 'pending',
           token,
-          expires_at: expiresAt.toISOString()
+          expires_at: expiresAt.toISOString(),
+          name: null,
+          department: null
         })
         .select()
         .single();
@@ -541,7 +543,7 @@ export const OrganizationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         role: inviteData.role as 'admin' | 'member' | 'client',
         invited_by: inviteData.invited_by,
         invited_at: inviteData.invited_at,
-        status: inviteData.status as 'pending' | 'accepted' | 'declined',
+        status: inviteData.status as 'pending' | 'accepted' | 'declined' | 'revoked',
         token: inviteData.token,
         expires_at: inviteData.expires_at,
         created_at: inviteData.created_at,
