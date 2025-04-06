@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { Organization, OrganizationSettings, TeamMember, Invite, Address } from "@/types";
 import { useAuth } from "./AuthContext";
@@ -30,7 +29,6 @@ export const OrganizationProvider: React.FC<{ children: React.ReactNode }> = ({ 
   const [invites, setInvites] = useState<Invite[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Load organization data
   const loadOrganization = async () => {
     if (!user) {
       setOrganization(null);
@@ -44,13 +42,12 @@ export const OrganizationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     try {
       console.log("Loading organization for user:", user.id);
       
-      // Check if user belongs to any organization
       const { data: teamMemberData, error: teamMemberError } = await supabase
         .from('team_members')
         .select('*')
         .eq('user_id', user.id)
         .eq('status', 'active')
-        .maybeSingle(); // Changed from single to maybeSingle
+        .maybeSingle();
 
       if (teamMemberError && teamMemberError.code !== 'PGRST116') {
         console.error('Error fetching team member data:', teamMemberError);
@@ -60,8 +57,6 @@ export const OrganizationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       if (teamMemberData) {
         console.log("User belongs to organization:", teamMemberData.organization_id);
         
-        // User belongs to an organization
-        // Fetch organization data
         const { data: orgData, error: orgError } = await supabase
           .from('organizations')
           .select('*')
@@ -73,19 +68,17 @@ export const OrganizationProvider: React.FC<{ children: React.ReactNode }> = ({ 
           throw orgError;
         }
 
-        // Fetch organization settings
         const { data: settingsData, error: settingsError } = await supabase
           .from('organization_settings')
           .select('*')
           .eq('organization_id', teamMemberData.organization_id)
-          .maybeSingle(); // Changed from single to maybeSingle
+          .maybeSingle();
 
         if (settingsError && settingsError.code !== 'PGRST116') {
           console.error('Error fetching organization settings:', settingsError);
           throw settingsError;
         }
 
-        // Fetch organization address if exists
         const { data: addressData, error: addressError } = await supabase
           .from('organization_addresses')
           .select('*')
@@ -97,7 +90,6 @@ export const OrganizationProvider: React.FC<{ children: React.ReactNode }> = ({ 
           throw addressError;
         }
 
-        // Fetch all team members for this organization
         const { data: membersData, error: membersError } = await supabase
           .from('team_members')
           .select('*')
@@ -108,7 +100,6 @@ export const OrganizationProvider: React.FC<{ children: React.ReactNode }> = ({ 
           throw membersError;
         }
 
-        // Fetch all pending invites for this organization
         const { data: invitesData, error: invitesError } = await supabase
           .from('invites')
           .select('*')
@@ -120,7 +111,6 @@ export const OrganizationProvider: React.FC<{ children: React.ReactNode }> = ({ 
           throw invitesError;
         }
 
-        // Format the address
         const address: Address | undefined = addressData ? {
           street: addressData.street,
           city: addressData.city,
@@ -129,7 +119,6 @@ export const OrganizationProvider: React.FC<{ children: React.ReactNode }> = ({ 
           country: addressData.country,
         } : undefined;
 
-        // Format the settings
         const settings: OrganizationSettings = settingsData ? {
           allowClientInvites: settingsData.allow_client_invites,
           allowTeamInvites: settingsData.allow_team_invites,
@@ -142,7 +131,6 @@ export const OrganizationProvider: React.FC<{ children: React.ReactNode }> = ({ 
           color: '#6366f1',
         };
 
-        // Create the organization object
         const org: Organization = {
           id: orgData.id,
           name: orgData.name,
@@ -155,11 +143,10 @@ export const OrganizationProvider: React.FC<{ children: React.ReactNode }> = ({ 
           createdById: orgData.created_by_id,
           createdAt: new Date(orgData.created_at),
           updatedAt: new Date(orgData.updated_at),
-          plan: 'free', // Default plan, can be updated later
+          plan: 'free',
           settings: settings,
         };
 
-        // Format team members
         const formattedMembers: TeamMember[] = membersData?.map(member => ({
           id: member.id,
           userId: member.user_id,
@@ -169,10 +156,9 @@ export const OrganizationProvider: React.FC<{ children: React.ReactNode }> = ({ 
           invitedAt: new Date(member.invited_at),
           joinedAt: member.joined_at ? new Date(member.joined_at) : undefined,
           status: member.status as 'invited' | 'active' | 'inactive',
-          permissions: [], // Placeholder, can be expanded later
+          permissions: [],
         })) || [];
 
-        // Format invites
         const formattedInvites: Invite[] = invitesData?.map(invite => ({
           id: invite.id,
           email: invite.email,
@@ -191,7 +177,6 @@ export const OrganizationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         console.log("Organization loaded successfully:", org.name);
       } else {
         console.log("User doesn't belong to any organization yet");
-        // User doesn't belong to any organization yet
         setOrganization(null);
         setMembers([]);
         setInvites([]);
@@ -204,17 +189,14 @@ export const OrganizationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     }
   };
 
-  // Add function to refresh organization data
   const refreshOrganization = async () => {
     await loadOrganization();
   };
 
-  // Load organization data when user changes
   useEffect(() => {
     loadOrganization();
   }, [user]);
 
-  // Create organization
   const createOrganization = async (name: string) => {
     if (!user) throw new Error("User not authenticated");
     
@@ -222,7 +204,6 @@ export const OrganizationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     try {
       console.log("Creating organization:", name);
       
-      // Step 1: Insert new organization
       const { data: orgData, error: orgError } = await supabase
         .from('organizations')
         .insert({
@@ -239,7 +220,6 @@ export const OrganizationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       
       console.log("Organization created:", orgData);
       
-      // Step 2: Insert the user as the owner of the organization
       const { error: memberError } = await supabase
         .from('team_members')
         .insert({
@@ -258,7 +238,6 @@ export const OrganizationProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
       console.log("Team member created for organization owner");
       
-      // Step 3: Insert organization settings
       const { error: settingsError } = await supabase
         .from('organization_settings')
         .insert({
@@ -276,7 +255,6 @@ export const OrganizationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       
       console.log("Organization settings created");
       
-      // Create the formatted organization object
       const settings: OrganizationSettings = {
         allowClientInvites: true,
         allowTeamInvites: true,
@@ -299,7 +277,6 @@ export const OrganizationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         settings: settings,
       };
       
-      // Create team member entry for the owner
       const ownerMember: TeamMember = {
         id: user.id,
         userId: user.id,
@@ -318,7 +295,6 @@ export const OrganizationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       console.log("Organization setup complete:", newOrg.name);
       toast.success("Organization created successfully");
       
-      // Trigger a refresh to ensure we have the latest data
       setTimeout(() => refreshOrganization(), 500);
       
     } catch (error: any) {
@@ -330,14 +306,12 @@ export const OrganizationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     }
   };
 
-  // Update organization
   const updateOrganization = async (data: Partial<Organization>) => {
     if (!organization) throw new Error("No organization selected");
     if (!user) throw new Error("User not authenticated");
     
     setLoading(true);
     try {
-      // Prepare database fields from the input data
       const updateData: any = {
         name: data.name,
         email: data.email,
@@ -347,7 +321,6 @@ export const OrganizationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         updated_at: new Date().toISOString()
       };
       
-      // Update organization data
       const { error: orgError } = await supabase
         .from('organizations')
         .update(updateData)
@@ -355,7 +328,6 @@ export const OrganizationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         
       if (orgError) throw orgError;
       
-      // Update address if it exists in the input data
       if (data.address) {
         const addressData = {
           street: data.address.street,
@@ -366,7 +338,6 @@ export const OrganizationProvider: React.FC<{ children: React.ReactNode }> = ({ 
           updated_at: new Date().toISOString()
         };
         
-        // Check if address already exists
         const { data: existingAddress, error: addressCheckError } = await supabase
           .from('organization_addresses')
           .select('id')
@@ -376,7 +347,6 @@ export const OrganizationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         if (addressCheckError && addressCheckError.code !== 'PGRST116') throw addressCheckError;
         
         if (existingAddress) {
-          // Update existing address
           const { error: addressUpdateError } = await supabase
             .from('organization_addresses')
             .update(addressData)
@@ -384,7 +354,6 @@ export const OrganizationProvider: React.FC<{ children: React.ReactNode }> = ({ 
             
           if (addressUpdateError) throw addressUpdateError;
         } else {
-          // Insert new address
           const { error: addressInsertError } = await supabase
             .from('organization_addresses')
             .insert({
@@ -396,7 +365,6 @@ export const OrganizationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         }
       }
       
-      // Create the updated organization object
       const updatedOrg: Organization = {
         ...organization,
         ...data,
@@ -415,20 +383,18 @@ export const OrganizationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     }
   };
 
-  // Upload organization logo
   const uploadLogo = async (file: File): Promise<string> => {
     if (!organization) throw new Error("No organization selected");
     if (!user) throw new Error("User not authenticated");
     
     setLoading(true);
     try {
-      // Upload file to Supabase Storage
       const fileName = `org_${organization.id}_logo_${Date.now()}`;
       const fileExt = file.name.split('.').pop();
       const filePath = `${fileName}.${fileExt}`;
       
       const { data: uploadData, error: uploadError } = await supabase.storage
-        .from('organization_logos')
+        .from('organization-logos')
         .upload(filePath, file, {
           cacheControl: '3600',
           upsert: false
@@ -436,14 +402,12 @@ export const OrganizationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         
       if (uploadError) throw uploadError;
       
-      // Get the public URL
       const { data: urlData } = supabase.storage
-        .from('organization_logos')
+        .from('organization-logos')
         .getPublicUrl(uploadData.path);
         
       const logoUrl = urlData.publicUrl;
       
-      // Update organization with logo URL
       const { error: updateError } = await supabase
         .from('organizations')
         .update({ logo: logoUrl })
@@ -451,7 +415,6 @@ export const OrganizationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         
       if (updateError) throw updateError;
       
-      // Update local state
       setOrganization({
         ...organization,
         logo: logoUrl
@@ -468,14 +431,12 @@ export const OrganizationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     }
   };
 
-  // Update organization settings
   const updateSettings = async (settings: Partial<OrganizationSettings>) => {
     if (!organization) throw new Error("No organization selected");
     if (!user) throw new Error("User not authenticated");
     
     setLoading(true);
     try {
-      // Prepare database fields from the input settings
       const updateData = {
         allow_client_invites: settings.allowClientInvites,
         allow_team_invites: settings.allowTeamInvites,
@@ -484,7 +445,6 @@ export const OrganizationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         updated_at: new Date().toISOString()
       };
       
-      // Update settings in database
       const { error: settingsError } = await supabase
         .from('organization_settings')
         .update(updateData)
@@ -492,7 +452,6 @@ export const OrganizationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         
       if (settingsError) throw settingsError;
       
-      // Update local state
       const updatedSettings = {
         ...organization.settings,
         ...settings
@@ -514,14 +473,12 @@ export const OrganizationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     }
   };
 
-  // Invite team member
   const inviteTeamMember = async (email: string, role: "admin" | "member") => {
     if (!organization) throw new Error("No organization selected");
     if (!user) throw new Error("User not authenticated");
     
     setLoading(true);
     try {
-      // Check if already invited
       const { data: existingInvite, error: checkError } = await supabase
         .from('invites')
         .select('*')
@@ -536,12 +493,10 @@ export const OrganizationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         throw new Error("User already invited");
       }
       
-      // Create invite token and expiry date (7 days from now)
       const token = crypto.randomUUID();
       const expiresAt = new Date();
       expiresAt.setDate(expiresAt.getDate() + 7);
       
-      // Insert new invite
       const { data: inviteData, error: inviteError } = await supabase
         .from('invites')
         .insert({
@@ -558,7 +513,6 @@ export const OrganizationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         
       if (inviteError) throw inviteError;
       
-      // Create invite object for local state
       const newInvite: Invite = {
         id: inviteData.id,
         email: inviteData.email,
@@ -571,11 +525,7 @@ export const OrganizationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         expiresAt: new Date(inviteData.expires_at),
       };
       
-      // Update local state
       setInvites([...invites, newInvite]);
-      
-      // In a real implementation, we would send an email to the invited user
-      // with a link to accept the invitation
       
       toast.success(`Invitation sent to ${email}`);
     } catch (error: any) {
@@ -587,14 +537,12 @@ export const OrganizationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     }
   };
 
-  // Revoke invite
   const revokeInvite = async (inviteId: string) => {
     if (!organization) throw new Error("No organization selected");
     if (!user) throw new Error("User not authenticated");
     
     setLoading(true);
     try {
-      // Update invite status to declined
       const { error } = await supabase
         .from('invites')
         .update({ status: 'declined' })
@@ -603,7 +551,6 @@ export const OrganizationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         
       if (error) throw error;
       
-      // Update local state
       setInvites(invites.filter(invite => invite.id !== inviteId));
       
       toast.success("Invitation revoked");
@@ -616,23 +563,19 @@ export const OrganizationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     }
   };
 
-  // Remove team member
   const removeMember = async (memberId: string) => {
     if (!organization) throw new Error("No organization selected");
     if (!user) throw new Error("User not authenticated");
     
     setLoading(true);
     try {
-      // Get member to remove first
       const memberToRemove = members.find(m => m.id === memberId);
       if (!memberToRemove) throw new Error("Member not found");
       
-      // Check if trying to remove the owner
       if (memberToRemove.role === "owner") {
         throw new Error("Cannot remove the organization owner");
       }
       
-      // Update member status to inactive
       const { error } = await supabase
         .from('team_members')
         .update({ status: 'inactive' })
@@ -641,7 +584,6 @@ export const OrganizationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         
       if (error) throw error;
       
-      // Update local state
       setMembers(members.filter(member => member.id !== memberId));
       
       toast.success("Team member removed");
@@ -654,23 +596,19 @@ export const OrganizationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     }
   };
 
-  // Update member role
   const updateMemberRole = async (memberId: string, role: "admin" | "member") => {
     if (!organization) throw new Error("No organization selected");
     if (!user) throw new Error("User not authenticated");
     
     setLoading(true);
     try {
-      // Get member to update first
       const memberToUpdate = members.find(m => m.id === memberId);
       if (!memberToUpdate) throw new Error("Member not found");
       
-      // Check if trying to update the owner
       if (memberToUpdate.role === "owner") {
         throw new Error("Cannot change the role of the organization owner");
       }
       
-      // Update member role
       const { error } = await supabase
         .from('team_members')
         .update({ role })
@@ -679,7 +617,6 @@ export const OrganizationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         
       if (error) throw error;
       
-      // Update local state
       setMembers(members.map(member => 
         member.id === memberId ? { ...member, role } : member
       ));

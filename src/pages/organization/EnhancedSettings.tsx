@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useForm } from "react-hook-form";
@@ -18,7 +17,6 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Loader2, Upload } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 
-// Form schema
 const formSchema = z.object({
   name: z.string().min(1, "Organization name is required"),
   email: z.string().email("Invalid email address").optional().or(z.literal("")),
@@ -30,7 +28,6 @@ const formSchema = z.object({
 
 type FormValues = z.infer<typeof formSchema>;
 
-// Currency options
 const currencies = [
   { label: "US Dollar", value: "USD", symbol: "$" },
   { label: "Euro", value: "EUR", symbol: "€" },
@@ -52,7 +49,6 @@ const EnhancedOrganizationSettings: React.FC = () => {
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
-  // Initialize the form
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -65,14 +61,12 @@ const EnhancedOrganizationSettings: React.FC = () => {
     },
   });
 
-  // Check if user is authenticated
   useEffect(() => {
     if (!user) {
       navigate("/auth/login");
     }
   }, [user, navigate]);
 
-  // Load organization data into form when available
   useEffect(() => {
     if (organization) {
       form.reset({
@@ -86,14 +80,12 @@ const EnhancedOrganizationSettings: React.FC = () => {
         currency: organization.currency || "USD",
       });
 
-      // Set logo preview if available
       if (organization.logo) {
         setLogoPreview(organization.logo);
       }
     }
   }, [organization, form]);
 
-  // Handle logo file selection
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
@@ -102,12 +94,10 @@ const EnhancedOrganizationSettings: React.FC = () => {
     }
   };
 
-  // Handle form submission
   const onSubmit = async (data: FormValues) => {
     if (!organization) return;
 
     try {
-      // Handle logo upload first if a file was selected
       let logoUrl = organization.logo;
       if (selectedFile) {
         setFileUploadLoading(true);
@@ -126,18 +116,15 @@ const EnhancedOrganizationSettings: React.FC = () => {
         setFileUploadLoading(false);
       }
 
-      // Parse address from string to object format
       const addressParts = data.address ? data.address.split(",").map(part => part.trim()) : [];
       let addressObject = organization.address;
       
       if (addressParts.length >= 4) {
-        // Try to parse the address from the string format
         const street = addressParts[0] || "";
         const city = addressParts[1] || "";
         let state = "";
         let zipCode = "";
         
-        // Try to extract state and zipcode
         if (addressParts[2]) {
           const stateZipParts = addressParts[2].split(" ").filter(p => p);
           state = stateZipParts[0] || "";
@@ -155,7 +142,6 @@ const EnhancedOrganizationSettings: React.FC = () => {
         };
       }
 
-      // Update organization
       await updateOrganization({
         ...organization,
         name: data.name,
@@ -181,7 +167,6 @@ const EnhancedOrganizationSettings: React.FC = () => {
     }
   };
 
-  // Show loading state
   if (loading) {
     return (
       <DashboardLayout>
@@ -208,7 +193,6 @@ const EnhancedOrganizationSettings: React.FC = () => {
     );
   }
 
-  // Redirect to setup if no organization
   if (!loading && !organization) {
     return (
       <DashboardLayout>
@@ -236,7 +220,6 @@ const EnhancedOrganizationSettings: React.FC = () => {
           <CardContent>
             <Form {...form}>
               <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-                {/* Logo Upload */}
                 <div className="flex flex-col items-start gap-4 sm:flex-row sm:items-center mb-6">
                   <div className="relative">
                     <Avatar className="h-24 w-24">
@@ -294,7 +277,6 @@ const EnhancedOrganizationSettings: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Name */}
                 <FormField
                   control={form.control}
                   name="name"
@@ -309,7 +291,6 @@ const EnhancedOrganizationSettings: React.FC = () => {
                   )}
                 />
 
-                {/* Email */}
                 <FormField
                   control={form.control}
                   name="email"
@@ -327,7 +308,6 @@ const EnhancedOrganizationSettings: React.FC = () => {
                   )}
                 />
 
-                {/* Phone */}
                 <FormField
                   control={form.control}
                   name="phone"
@@ -342,7 +322,6 @@ const EnhancedOrganizationSettings: React.FC = () => {
                   )}
                 />
 
-                {/* Address */}
                 <FormField
                   control={form.control}
                   name="address"
@@ -364,7 +343,6 @@ const EnhancedOrganizationSettings: React.FC = () => {
                   )}
                 />
 
-                {/* Tax ID */}
                 <FormField
                   control={form.control}
                   name="taxId"
@@ -379,7 +357,6 @@ const EnhancedOrganizationSettings: React.FC = () => {
                   )}
                 />
 
-                {/* Currency */}
                 <FormField
                   control={form.control}
                   name="currency"
