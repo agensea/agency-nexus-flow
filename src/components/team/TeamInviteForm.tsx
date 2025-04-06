@@ -36,7 +36,7 @@ const formSchema = z.object({
 
 type FormValues = z.infer<typeof formSchema>;
 
-// Define explicit interfaces for our database responses
+// Define simple interfaces for our database responses without complex nested types
 interface ProfileData {
   id: string;
 }
@@ -83,7 +83,8 @@ const TeamInviteForm: React.FC<{ onSuccess?: () => void }> = ({ onSuccess }) => 
       }
       
       // Check if user exists in profiles
-      const { data, error: profileError } = await supabase
+      let existingUser = null;
+      const { data: profileData, error: profileError } = await supabase
         .from("profiles")
         .select("id")
         .eq("email", values.email)
@@ -91,11 +92,14 @@ const TeamInviteForm: React.FC<{ onSuccess?: () => void }> = ({ onSuccess }) => 
       
       if (profileError && profileError.code !== "PGRST116") throw profileError;
       
-      // Safely cast the data to our defined type
-      const existingUser: ProfileData | null = data as ProfileData | null;
+      // Use a simple assignment without complex casting
+      if (profileData) {
+        existingUser = { id: profileData.id };
+      }
       
       if (existingUser) {
         // Check if this user is already a member of the organization
+        let existingMember = null;
         const { data: memberData, error: memberError } = await supabase
           .from("team_members")
           .select("id, status")
@@ -105,8 +109,10 @@ const TeamInviteForm: React.FC<{ onSuccess?: () => void }> = ({ onSuccess }) => 
           
         if (memberError && memberError.code !== "PGRST116") throw memberError;
         
-        // Safely cast the member data to our defined type
-        const existingMember: TeamMemberData | null = memberData as TeamMemberData | null;
+        // Use a simple assignment without complex casting
+        if (memberData) {
+          existingMember = { id: memberData.id, status: memberData.status };
+        }
         
         if (existingMember && existingMember.status === "active") {
           toast.error("This user is already a team member");
