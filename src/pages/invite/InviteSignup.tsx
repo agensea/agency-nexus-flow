@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useForm } from "react-hook-form";
@@ -93,10 +92,12 @@ const InviteSignup: React.FC = () => {
         // Convert inviter to match our expected type
         let processedInviter = null;
         if (inviteData.inviter && 
-            typeof inviteData.inviter === 'object' && 
-            inviteData.inviter !== null && 
-            'name' in inviteData.inviter) {
-          processedInviter = { name: inviteData.inviter.name };
+            typeof inviteData.inviter === 'object') {
+          // Safely check for the name property
+          const inviterObject = inviteData.inviter as Record<string, unknown>;
+          if (inviterObject && 'name' in inviterObject) {
+            processedInviter = { name: inviterObject.name as string };
+          }
         }
 
         const typedInvite: InviteData = {
