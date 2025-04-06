@@ -47,13 +47,30 @@ const TeamInvites: React.FC<TeamInvitesProps> = ({ organization, userRole }) => 
 
       if (error) throw error;
 
-      setInvites(data || []);
+      // Map the data to the correct Invite type to ensure role compatibility
+      const mappedInvites: Invite[] = (data || []).map(invite => ({
+        ...invite,
+        // Ensure the role matches the expected union type in the Invite interface
+        role: mapDatabaseRoleToInviteRole(invite.role),
+      }));
+
+      setInvites(mappedInvites);
     } catch (error) {
       console.error("Error fetching invites:", error);
       toast.error("Failed to load invites");
     } finally {
       setLoading(false);
     }
+  };
+
+  // Helper function to ensure role matches expected type
+  const mapDatabaseRoleToInviteRole = (role: string): "admin" | "member" | "client" => {
+    if (role === "admin" || role === "member" || role === "client") {
+      return role as "admin" | "member" | "client";
+    }
+    // Default to member if we receive an unexpected role
+    console.warn(`Unexpected role received from database: ${role}`);
+    return "member";
   };
 
   const handleResendInvite = async (inviteId: string) => {

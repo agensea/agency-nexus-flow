@@ -35,22 +35,6 @@ const formSchema = z.object({
 
 type FormValues = z.infer<typeof formSchema>;
 
-// Define simpler interfaces to avoid deep type instantiation
-interface ProfileResponse {
-  data: { id: string } | null;
-  error: any;
-}
-
-interface TeamMemberResponse {
-  data: { id: string; status: string } | null;
-  error: any;
-}
-
-interface InviteResponse {
-  data: { id: string } | null;
-  error: any;
-}
-
 const TeamInviteForm: React.FC<{ onSuccess?: () => void }> = ({ onSuccess }) => {
   const { organization } = useOrganization();
   const { user } = useAuth();
@@ -72,7 +56,7 @@ const TeamInviteForm: React.FC<{ onSuccess?: () => void }> = ({ onSuccess }) => 
     setLoading(true);
     try {
       // Check for existing pending invites
-      const existingInviteResponse = await supabase
+      const existingInviteQuery = await supabase
         .from("invites")
         .select("*")
         .eq("email", values.email)
@@ -80,44 +64,44 @@ const TeamInviteForm: React.FC<{ onSuccess?: () => void }> = ({ onSuccess }) => 
         .eq("status", "pending")
         .maybeSingle();
 
-      if (existingInviteResponse.error && existingInviteResponse.error.code !== "PGRST116") {
-        throw existingInviteResponse.error;
+      if (existingInviteQuery.error && existingInviteQuery.error.code !== "PGRST116") {
+        throw existingInviteQuery.error;
       }
 
-      if (existingInviteResponse.data) {
+      if (existingInviteQuery.data) {
         toast.error("This email has already been invited");
         setLoading(false);
         return;
       }
 
       // Check if user already exists
-      const profileResponse: ProfileResponse = await supabase
+      const profileQuery = await supabase
         .from("profiles")
         .select("id")
         .eq("email", values.email)
         .maybeSingle();
 
-      if (profileResponse.error && profileResponse.error.code !== "PGRST116") {
-        throw profileResponse.error;
+      if (profileQuery.error && profileQuery.error.code !== "PGRST116") {
+        throw profileQuery.error;
       }
 
       // If user exists, check if they're already a team member
       let existingUser = null;
-      if (profileResponse.data) {
-        existingUser = { id: profileResponse.data.id };
+      if (profileQuery.data) {
+        existingUser = { id: profileQuery.data.id };
 
-        const memberResponse: TeamMemberResponse = await supabase
+        const memberQuery = await supabase
           .from("team_members")
           .select("id, status")
           .eq("user_id", existingUser.id)
           .eq("organization_id", organization.id)
           .maybeSingle();
 
-        if (memberResponse.error && memberResponse.error.code !== "PGRST116") {
-          throw memberResponse.error;
+        if (memberQuery.error && memberQuery.error.code !== "PGRST116") {
+          throw memberQuery.error;
         }
 
-        if (memberResponse.data && memberResponse.data.status === "active") {
+        if (memberQuery.data && memberQuery.data.status === "active") {
           toast.error("This user is already a team member");
           setLoading(false);
           return;
@@ -129,29 +113,31 @@ const TeamInviteForm: React.FC<{ onSuccess?: () => void }> = ({ onSuccess }) => 
       const expiresAt = new Date();
       expiresAt.setDate(expiresAt.getDate() + 7);
 
-      const inviteResponse: InviteResponse = await supabase
+      const inviteData = {
+        email: values.email,
+        name: values.name,
+        department: values.department || null,
+        organization_id: organization.id,
+        role: values.role,
+        invited_by: user.id,
+        status: "pending",
+        token,
+        expires_at: expiresAt.toISOString(),
+      };
+
+      const inviteQuery = await supabase
         .from("invites")
-        .insert({
-          email: values.email,
-          name: values.name,
-          department: values.department || null,
-          organization_id: organization.id,
-          role: values.role,
-          invited_by: user.id,
-          status: "pending",
-          token,
-          expires_at: expiresAt.toISOString(),
-        })
+        .insert(inviteData)
         .select()
         .single();
 
-      if (inviteResponse.error) {
-        throw inviteResponse.error;
+      if (inviteQuery.error) {
+        throw inviteQuery.error;
       }
 
       // Send the invite email
       const sendResponse = await supabase.functions.invoke("send-invite", {
-        body: { inviteId: inviteResponse.data.id },
+        body: { inviteId: inviteQuery.data.id },
       });
 
       if (sendResponse.error) {
