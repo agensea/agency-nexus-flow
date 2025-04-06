@@ -55,60 +55,48 @@ const TeamInviteForm: React.FC<{ onSuccess?: () => void }> = ({ onSuccess }) => 
 
     setLoading(true);
     try {
-      // Check for existing pending invites - Specify types explicitly to avoid deep type instantiation
-      const existingInviteResult = await supabase
+      // Check for existing pending invites - Using a different approach to avoid deep type instantiation
+      const existingInviteQuery = await supabase
         .from("invites")
         .select("id")
         .eq("email", values.email)
         .eq("organization_id", organization.id)
-        .eq("status", "pending")
-        .maybeSingle();
+        .eq("status", "pending");
       
-      const existingInvite = existingInviteResult.data;
-      const existingInviteError = existingInviteResult.error;
-
-      if (existingInviteError && existingInviteError.code !== "PGRST116") {
-        throw existingInviteError;
+      if (existingInviteQuery.error) {
+        throw existingInviteQuery.error;
       }
 
-      if (existingInvite) {
+      if (existingInviteQuery.data && existingInviteQuery.data.length > 0) {
         toast.error("This email has already been invited");
         setLoading(false);
         return;
       }
 
-      // Check if user already exists - Specify types explicitly to avoid deep type instantiation
-      const profileResult = await supabase
+      // Check if user already exists - Using a different approach to avoid deep type instantiation
+      const profileQuery = await supabase
         .from("profiles")
         .select("id")
-        .eq("email", values.email)
-        .maybeSingle();
+        .eq("email", values.email);
       
-      const profile = profileResult.data;
-      const profileError = profileResult.error;
-
-      if (profileError && profileError.code !== "PGRST116") {
-        throw profileError;
+      if (profileQuery.error) {
+        throw profileQuery.error;
       }
 
       // If user exists, check if they're already a team member
-      let existingUserId = profile?.id;
+      let existingUserId = profileQuery.data?.[0]?.id;
       if (existingUserId) {
-        const memberResult = await supabase
+        const memberQuery = await supabase
           .from("team_members")
           .select("id, status")
           .eq("user_id", existingUserId)
-          .eq("organization_id", organization.id)
-          .maybeSingle();
+          .eq("organization_id", organization.id);
         
-        const member = memberResult.data;
-        const memberError = memberResult.error;
-
-        if (memberError && memberError.code !== "PGRST116") {
-          throw memberError;
+        if (memberQuery.error) {
+          throw memberQuery.error;
         }
 
-        if (member && member.status === "active") {
+        if (memberQuery.data && memberQuery.data.length > 0 && memberQuery.data[0].status === "active") {
           toast.error("This user is already a team member");
           setLoading(false);
           return;
@@ -135,14 +123,15 @@ const TeamInviteForm: React.FC<{ onSuccess?: () => void }> = ({ onSuccess }) => 
       const inviteResult = await supabase
         .from("invites")
         .insert(inviteData)
-        .select()
-        .single();
+        .select();
       
-      const createdInvite = inviteResult.data;
-      const inviteError = inviteResult.error;
+      if (inviteResult.error) {
+        throw inviteResult.error;
+      }
 
-      if (inviteError) {
-        throw inviteError;
+      const createdInvite = inviteResult.data?.[0];
+      if (!createdInvite) {
+        throw new Error("Failed to create invitation");
       }
 
       // Send the invite email
@@ -150,10 +139,8 @@ const TeamInviteForm: React.FC<{ onSuccess?: () => void }> = ({ onSuccess }) => 
         body: { inviteId: createdInvite.id },
       });
       
-      const sendError = sendResult.error;
-
-      if (sendError) {
-        throw sendError;
+      if (sendResult.error) {
+        throw sendResult.error;
       }
 
       toast.success(`Invitation sent to ${values.email}`);
