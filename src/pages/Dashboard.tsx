@@ -26,6 +26,7 @@ const Dashboard: React.FC = () => {
   const { addNotification } = useNotifications();
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(true);
+  const [isInvited, setIsInvited] = useState(false);
 
   // Check if user is authenticated
   useEffect(() => {
@@ -33,6 +34,25 @@ const Dashboard: React.FC = () => {
       navigate("/auth/login");
       return;
     }
+
+    const checkInviteStatus = async () => {
+      try {
+        const { data: inviteData, error: inviteError } = await supabase
+          .from("invites")
+          .select("id")
+          .eq("email", user.email)
+          .eq("status", "accepted")
+          .single();
+
+        if (inviteData) {
+          setIsInvited(true);
+        }
+      } catch (error) {
+        console.error("Error checking invite status:", error);
+      }
+    };
+
+    checkInviteStatus();
 
     // If user is authenticated but has no organization, redirect to setup
     if (user && !organization && !tasksLoading && !invoicesLoading && !clientsLoading && !chatLoading) {
@@ -73,6 +93,10 @@ const Dashboard: React.FC = () => {
     return <DashboardLayoutSkeleton />;
   }
 
+  if (!organization && !isInvited) {
+    navigate("/organization/setup");
+  }
+
   // Get counts for dashboard stats
   const tasksDueToday = tasks.filter(task => {
     if (!task.dueDate) return false;
@@ -91,10 +115,6 @@ const Dashboard: React.FC = () => {
     const dueDate = new Date(task.dueDate);
     return dueDate < today && task.status !== "done";
   });
-
-  const unpaidInvoices = invoices.filter(invoice => invoice.status !== "paid");
-  const totalUnpaidAmount = unpaidInvoices.reduce((total, invoice) => total + invoice.total, 0);
-  const unreadMessages = getTotalUnreadCount();
 
   return (
     <DashboardLayout>
