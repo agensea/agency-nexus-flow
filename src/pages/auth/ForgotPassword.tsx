@@ -16,6 +16,9 @@ import {
 import { Input } from "@/components/ui/input";
 import AuthLayout from "@/components/layouts/AuthLayout";
 import { useAuth } from "@/contexts/AuthContext";
+import { toast } from "sonner";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { InfoIcon } from "lucide-react";
 
 const formSchema = z.object({
   email: z.string().email("Please enter a valid email address"),
@@ -27,6 +30,7 @@ const ForgotPassword: React.FC = () => {
   const { requestPasswordReset, loading } = useAuth();
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [submittedEmail, setSubmittedEmail] = useState("");
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -36,12 +40,15 @@ const ForgotPassword: React.FC = () => {
   });
 
   const onSubmit = async (values: FormValues) => {
+    setErrorMessage(null);
     try {
       await requestPasswordReset(values.email);
       setSubmittedEmail(values.email);
       setIsSubmitted(true);
-    } catch (error) {
+      console.log("Password reset email requested for:", values.email);
+    } catch (error: any) {
       console.error("Password reset request error:", error);
+      setErrorMessage(error.message || "Failed to send reset link. Please try again later.");
       // Error is already handled in the context with toast
     }
   };
@@ -53,11 +60,27 @@ const ForgotPassword: React.FC = () => {
         subtitle={`We've sent a password reset link to ${submittedEmail}`}
       >
         <div className="space-y-6 text-center">
-          <p className="text-muted-foreground">
-            Click the link in the email to reset your password. If you don't see the email, check your spam folder.
-          </p>
+          <Alert className="bg-primary/10 border-primary/20 text-left">
+            <div className="flex items-start gap-3">
+              <InfoIcon className="h-5 w-5 text-primary mt-0.5" />
+              <AlertDescription className="text-sm text-foreground">
+                Click the link in the email to reset your password. The link will expire in 24 hours.
+                <br /><br />
+                If you don't see the email, please check your spam folder. It may take a few minutes to arrive.
+              </AlertDescription>
+            </div>
+          </Alert>
           
-          <div className="space-y-2">
+          <div className="space-y-2 mt-4">
+            <Button 
+              type="button" 
+              variant="outline" 
+              className="w-full"
+              onClick={() => onSubmit({ email: submittedEmail })}
+            >
+              Resend reset link
+            </Button>
+            
             <Button asChild variant="outline" className="w-full">
               <Link to="/auth/login">
                 Back to login
@@ -94,6 +117,14 @@ const ForgotPassword: React.FC = () => {
               </FormItem>
             )}
           />
+          
+          {errorMessage && (
+            <Alert variant="destructive">
+              <AlertDescription>
+                {errorMessage}
+              </AlertDescription>
+            </Alert>
+          )}
           
           <Button 
             type="submit" 

@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { User } from "@/types";
 import { toast } from "sonner";
@@ -25,9 +24,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Set up auth state listener
   useEffect(() => {
-    // Set up auth state listener FIRST
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
         console.log("Auth state changed:", event, session?.user?.id);
@@ -48,7 +45,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     );
 
-    // THEN check for existing session
     supabase.auth.getSession().then(({ data: { session } }) => {
       console.log("Initial session check:", session?.user?.id);
       setSession(session);
@@ -71,7 +67,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
   }, []);
 
-  // Sign up function
   const signUp = async (email: string, password: string, name: string) => {
     setLoading(true);
     try {
@@ -97,7 +92,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  // Sign in function
   const signIn = async (email: string, password: string) => {
     setLoading(true);
     try {
@@ -117,7 +111,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  // Sign out function
   const signOut = async () => {
     setLoading(true);
     try {
@@ -134,12 +127,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  // Email verification function
   const verifyEmail = async (token: string): Promise<boolean> => {
     setLoading(true);
     try {
-      // In Supabase, verification is handled automatically via the redirect URL
-      // This function is kept for API consistency, but doesn't do anything special
       setLoading(false);
       return true;
     } catch (error: any) {
@@ -149,30 +139,34 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  // Password reset request function
   const requestPasswordReset = async (email: string) => {
     setLoading(true);
     try {
-      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      console.log("Requesting password reset for:", email);
+      
+      const { data, error } = await supabase.auth.resetPasswordForEmail(email, {
         redirectTo: `${window.location.origin}/auth/reset-password`,
       });
       
-      if (error) throw error;
+      if (error) {
+        console.error("Supabase password reset error:", error);
+        throw error;
+      }
       
+      console.log("Password reset email sent successfully:", data);
       toast.success("Password reset email sent! Please check your inbox.");
       setLoading(false);
     } catch (error: any) {
+      console.error("Password reset request detailed error:", error);
       setLoading(false);
       toast.error(error.message || "Failed to request password reset");
       throw error;
     }
   };
 
-  // Reset password function
   const resetPassword = async (token: string, password: string): Promise<boolean> => {
     setLoading(true);
     try {
-      // In Supabase, the token is handled automatically via the URL
       const { error } = await supabase.auth.updateUser({
         password: password,
       });
@@ -189,7 +183,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  // Update user function
   const updateUser = async (data: { name?: string; password?: string }) => {
     setLoading(true);
     try {
