@@ -7,6 +7,7 @@ import { Session } from "@supabase/supabase-js";
 
 interface AuthContextType {
   user: User | null;
+  session: Session | null;
   loading: boolean;
   signUp: (email: string, password: string, name: string) => Promise<void>;
   signIn: (email: string, password: string) => Promise<void>;
@@ -14,6 +15,7 @@ interface AuthContextType {
   verifyEmail: (token: string) => Promise<boolean>;
   requestPasswordReset: (email: string) => Promise<void>;
   resetPassword: (token: string, password: string) => Promise<boolean>;
+  updateUser: (data: { name?: string; password?: string }) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -28,6 +30,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // Set up auth state listener FIRST
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
+        console.log("Auth state changed:", event, session?.user?.id);
         setSession(session);
         if (session?.user) {
           const userData: User = {
@@ -47,6 +50,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     // THEN check for existing session
     supabase.auth.getSession().then(({ data: { session } }) => {
+      console.log("Initial session check:", session?.user?.id);
       setSession(session);
       if (session?.user) {
         const userData: User = {
@@ -185,10 +189,45 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  // Update user function
+  const updateUser = async (data: { name?: string; password?: string }) => {
+    setLoading(true);
+    try {
+      const updateData: {
+        password?: string;
+        data?: {
+          name?: string;
+        };
+      } = {};
+      
+      if (data.password) {
+        updateData.password = data.password;
+      }
+      
+      if (data.name) {
+        updateData.data = {
+          name: data.name
+        };
+      }
+      
+      const { error } = await supabase.auth.updateUser(updateData);
+      
+      if (error) throw error;
+      
+      toast.success("Profile updated successfully");
+      setLoading(false);
+    } catch (error: any) {
+      setLoading(false);
+      toast.error(error.message || "Failed to update profile");
+      throw error;
+    }
+  };
+
   return (
     <AuthContext.Provider
       value={{
         user,
+        session,
         loading,
         signUp,
         signIn,
@@ -196,6 +235,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         verifyEmail,
         requestPasswordReset,
         resetPassword,
+        updateUser,
       }}
     >
       {children}

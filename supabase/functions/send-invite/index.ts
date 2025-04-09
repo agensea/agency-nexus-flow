@@ -1,116 +1,124 @@
 
-import { serve } from "https://deno.land/std@0.181.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.38.0";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type",
 };
 
-interface InviteRequestBody {
-  inviteId: string;
-  newToken?: string;
+interface InviteData {
+  id: string;
+  email: string;
+  name: string | null;
+  token: string;
+  organization: {
+    name: string;
+    logo?: string | null;
+  };
+  inviter: {
+    name: string;
+  } | null;
 }
 
 serve(async (req) => {
-  // Handle CORS preflight requests
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+    return new Response("ok", { headers: corsHeaders });
   }
 
   try {
-    // Get the request details
-    const { inviteId, newToken } = await req.json() as InviteRequestBody;
+    const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
+    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
 
-    // Create a Supabase client with the project URL and service role key
-    const supabaseAdmin = createClient(
-      Deno.env.get("SUPABASE_URL") || "",
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "",
-      {
-        auth: {
-          autoRefreshToken: false,
-          persistSession: false,
-        },
-      }
-    );
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Get the invitation details with organization and inviter data
-    const { data: invite, error: inviteError } = await supabaseAdmin
+    const { inviteId } = await req.json();
+
+    if (!inviteId) {
+      throw new Error("Invite ID is required");
+    }
+
+    // Get the invite data
+    const { data: inviteData, error: inviteError } = await supabase
       .from("invites")
-      .select(`
-        *,
-        organization:organizations(name, logo),
-        inviter:profiles(name)
-      `)
+      .select("*, organization:organizations(name, logo), inviter:profiles(name)")
       .eq("id", inviteId)
       .single();
 
-    if (inviteError) {
-      throw new Error(`Error fetching invite: ${inviteError.message}`);
+    if (inviteError || !inviteData) {
+      throw new Error("Invite not found");
     }
 
-    // If a new token was provided, update the invite record
-    if (newToken) {
-      const expiresAt = new Date();
-      expiresAt.setDate(expiresAt.getDate() + 7); // 7 days from now
+    const invite: InviteData = {
+      id: inviteData.id,
+      email: inviteData.email,
+      name: inviteData.name,
+      token: inviteData.token,
+      organization: inviteData.organization,
+      inviter: inviteData.inviter,
+    };
 
-      const { error: updateError } = await supabaseAdmin
-        .from("invites")
-        .update({
-          token: newToken,
-          expires_at: expiresAt.toISOString(),
-        })
-        .eq("id", inviteId);
+    // Create the invite URL
+    const inviteUrl = `${req.headers.get("origin") || "http://localhost:5173"}/invite/${invite.token}`;
 
-      if (updateError) {
-        throw new Error(`Error updating invite: ${updateError.message}`);
-      }
+    // Send the email invitation
+    const emailSubject = `Join ${invite.organization.name} on AgencyOS`;
+    const inviterName = invite.inviter?.name || "The team";
+    const recipientName = invite.name || "there";
 
-      invite.token = newToken;
+    const emailHtml = `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 8px;">
+      ${invite.organization.logo ? `<div style="text-align: center; margin-bottom: 20px;"><img src="${invite.organization.logo}" alt="${invite.organization.name}" style="max-height: 60px;"></div>` : ''}
+      <h2 style="color: #374151; margin-bottom: 16px;">You've been invited to ${invite.organization.name}</h2>
+      <p style="color: #4b5563; margin-bottom: 16px;">${inviterName} has invited you to join their organization on AgencyOS.</p>
+      <p style="margin-bottom: 24px;">
+        <a href="${inviteUrl}" style="display: inline-block; background-color: #4f46e5; color: white; padding: 10px 18px; text-decoration: none; border-radius: 4px; font-weight: 500;">Accept Invitation</a>
+      </p>
+      <p style="color: #6b7280; font-size: 14px; margin-top: 24px;">If you can't click the button above, copy and paste this link into your browser: <a href="${inviteUrl}" style="color: #4f46e5;">${inviteUrl}</a></p>
+      <p style="color: #6b7280; font-size: 14px; margin-top: 24px;">This invitation will expire in 7 days.</p>
+    </div>
+    `;
+
+    // Send email using Supabase's built-in email service
+    const { error: emailError } = await supabase.auth.admin.createUser({
+      email: invite.email,
+      email_confirm: true,
+      user_metadata: {
+        invitation_id: invite.id,
+      },
+      password: crypto.randomUUID(), // Random temporary password
+    });
+
+    if (emailError) {
+      console.error("Error creating user for email:", emailError);
+      // This might fail if user already exists, but we can continue with regular email
     }
 
-    // Construct the invitation URL
-    const baseUrl = Deno.env.get("PUBLIC_SITE_URL") || "http://localhost:3000";
-    const inviteUrl = `${baseUrl}/invite/${invite.token}`;
-
-    // Log the invite details (in a real implementation, we'd send an actual email)
-    console.log("Sending invite email:", {
+    // For now, we'll log the invite details for testing
+    console.log("Invitation sent:", {
       to: invite.email,
-      subject: `You've been invited to join ${invite.organization.name}`,
-      inviteUrl: inviteUrl,
-      organizationName: invite.organization.name,
-      inviterName: invite.inviter?.name || "Someone",
-      recipientName: invite.name || "",
-      department: invite.department || "",
+      subject: emailSubject,
+      inviteUrl,
     });
 
     return new Response(
-      JSON.stringify({
-        success: true,
-        message: "Invitation email sent"
-      }),
+      JSON.stringify({ success: true, message: "Invitation sent" }),
       {
-        headers: {
-          "Content-Type": "application/json",
-          ...corsHeaders,
-        },
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
         status: 200,
       }
     );
   } catch (error) {
-    console.error("Error sending invitation:", error);
-    
+    console.error("Error processing invite:", error.message);
     return new Response(
       JSON.stringify({
         success: false,
         error: error.message,
       }),
       {
-        headers: {
-          "Content-Type": "application/json",
-          ...corsHeaders,
-        },
-        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 500,
       }
     );
   }

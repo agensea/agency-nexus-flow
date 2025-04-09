@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useForm } from "react-hook-form";
@@ -32,7 +33,6 @@ interface InviteData extends Invite {
 
 const formSchema = z.object({
   name: z.string().min(2, { message: "Name must be at least 2 characters" }),
-  email: z.string().email({ message: "Please enter a valid email address" }).optional(),
   password: z.string().min(8, { message: "Password must be at least 8 characters" }),
   confirmPassword: z.string(),
   phone: z.string().optional(),
@@ -61,7 +61,6 @@ const InviteSignup: React.FC = () => {
     resolver: zodResolver(formSchema),
     defaultValues: {
       name: "",
-      email: "",
       password: "",
       confirmPassword: "",
       phone: "",
@@ -77,6 +76,24 @@ const InviteSignup: React.FC = () => {
       }
 
       try {
+        console.log("Processing invite with token:", token);
+        
+        // Try to exchange the token for a session first
+        try {
+          const { data: sessionData, error: sessionError } = await supabase.auth.exchangeCodeForSession(token);
+          
+          if (sessionError) {
+            console.error("Error exchanging token for session:", sessionError);
+            // Continue to validate the invite even if session exchange fails
+          } else if (sessionData && sessionData.session) {
+            console.log("Successfully exchanged token for session");
+          }
+        } catch (exchangeError) {
+          console.error("Failed to exchange token:", exchangeError);
+          // Continue to check the invite even if token exchange fails
+        }
+
+        // Check if the invite exists and is valid
         const { data: inviteData, error: inviteError } = await supabase
           .from("invites")
           .select("*, organization:organizations(name, logo), inviter:profiles(name)")
@@ -84,10 +101,13 @@ const InviteSignup: React.FC = () => {
           .single();
 
         if (inviteError || !inviteData) {
+          console.error("Invite not found:", inviteError);
           setError("Invitation not found or has expired");
           setLoading(false);
           return;
         }
+
+        console.log("Found invite data:", inviteData);
 
         // Convert inviter to match our expected type
         let processedInviter = null;
@@ -140,8 +160,6 @@ const InviteSignup: React.FC = () => {
           form.setValue("name", typedInvite.name);
         }
         
-        form.setValue("email", typedInvite.email);
-
         setLoading(false);
       } catch (error) {
         console.error("Error validating invite:", error);
@@ -158,35 +176,74 @@ const InviteSignup: React.FC = () => {
 
     setSigningUp(true);
     try {
-      const { data: userData, error: userError } = await supabase.auth.signInWithPassword({
-        email: invite.email,
-        password: values.password,
-      });
+      console.log("Accepting invite and setting up profile with name:", values.name);
+      
+      // Check if user is already signed in from token exchange
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (!session) {
+        // If not signed in, we need to create an account
+        console.log("No active session, creating user account");
+        
+        const { data: userData, error: userError } = await supabase.auth.signUp({
+          email: invite.email,
+          password: values.password,
+          options: {
+            data: {
+              name: values.name,
+              phone: values.phone || null,
+              department: invite.department || null,
+              role: invite.role
+            },
+          },
+        });
 
-      if (userData.user) {
-        await acceptInvite(userData.user.id);
-        return;
-      }
-
-      const { data: signupData, error: signupError } = await supabase.auth.signUp({
-        email: invite.email,
-        password: values.password,
-        options: {
+        if (userError) {
+          console.error("Error creating user:", userError);
+          throw userError;
+        }
+        
+        if (!userData.user) {
+          // Email confirmation might be required
+          toast.info("Please check your email for verification link");
+          navigate("/auth/verification-sent");
+          return;
+        }
+        
+        // Update user data
+        await supabase.auth.updateUser({
+          password: values.password,
           data: {
             name: values.name,
-            phone: values.phone,
-            department: invite.department,
-          },
-        },
-      });
-
-      if (signupError) throw signupError;
-
-      if (signupData.user) {
-        await acceptInvite(signupData.user.id);
+            phone: values.phone || null,
+            department: invite.department || null,
+            role: invite.role
+          }
+        });
+        
+        await acceptInvite(userData.user.id);
       } else {
-        toast.info("Please check your email for verification link");
-        navigate("/auth/verification-sent");
+        // Already signed in from token exchange, just update user data
+        console.log("User is signed in, updating profile");
+        
+        const { data: updateData, error: updateError } = await supabase.auth.updateUser({
+          password: values.password,
+          data: {
+            name: values.name,
+            phone: values.phone || null,
+            department: invite.department || null,
+            role: invite.role
+          }
+        });
+        
+        if (updateError) {
+          console.error("Error updating user:", updateError);
+          throw updateError;
+        }
+        
+        if (updateData.user) {
+          await acceptInvite(updateData.user.id);
+        }
       }
     } catch (error: any) {
       console.error("Error accepting invite:", error);
@@ -197,13 +254,20 @@ const InviteSignup: React.FC = () => {
 
   const acceptInvite = async (userId: string) => {
     try {
+      console.log("Accepting invite for user:", userId, "to organization:", invite!.organization_id);
+      
+      // Mark the invite as accepted
       const { error: updateInviteError } = await supabase
         .from("invites")
         .update({ status: "accepted" })
         .eq("id", invite!.id);
 
-      if (updateInviteError) throw updateInviteError;
+      if (updateInviteError) {
+        console.error("Error updating invite status:", updateInviteError);
+        throw updateInviteError;
+      }
 
+      // Create team member entry
       const { error: createMemberError } = await supabase
         .from("team_members")
         .insert({
@@ -215,8 +279,12 @@ const InviteSignup: React.FC = () => {
           status: "active"
         });
 
-      if (createMemberError) throw createMemberError;
+      if (createMemberError) {
+        console.error("Error creating team member:", createMemberError);
+        throw createMemberError;
+      }
 
+      // Update profile
       const { error: updateProfileError } = await supabase
         .from("profiles")
         .update({
@@ -227,10 +295,12 @@ const InviteSignup: React.FC = () => {
         })
         .eq("id", userId);
 
-      if (updateProfileError) throw updateProfileError;
+      if (updateProfileError) {
+        console.error("Error updating profile:", updateProfileError);
+        throw updateProfileError;
+      }
 
       toast.success("You've successfully joined the organization!");
-      
       navigate("/dashboard");
     } catch (error: any) {
       console.error("Error accepting invite:", error);
@@ -303,24 +373,19 @@ const InviteSignup: React.FC = () => {
                 )}
               />
               
-              <FormField
-                control={form.control}
-                name="email"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Email</FormLabel>
-                    <FormControl>
-                      <Input 
-                        placeholder="Your email" 
-                        {...field} 
-                        disabled={true} 
-                        value={invite?.email || ""}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              {invite && (
+                <div className="space-y-1.5">
+                  <label className="font-medium text-sm">Email</label>
+                  <Input 
+                    value={invite.email} 
+                    disabled={true} 
+                    className="bg-gray-100 border border-gray-300"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    You'll sign in with this email address
+                  </p>
+                </div>
+              )}
               
               <FormField
                 control={form.control}

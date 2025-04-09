@@ -15,6 +15,7 @@ import { useClients } from "@/contexts/ClientContext";
 import { useChat } from "@/contexts/ChatContext";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useNotifications } from "@/contexts/NotificationContext";
+import { supabase } from "@/integrations/supabase/client";
 
 const Dashboard: React.FC = () => {
   const { user } = useAuth();
@@ -27,6 +28,9 @@ const Dashboard: React.FC = () => {
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(true);
   const [isInvited, setIsInvited] = useState(false);
+  const [unreadMessages, setUnreadMessages] = useState(0);
+  const [unpaidInvoices, setUnpaidInvoices] = useState<any[]>([]);
+  const [totalUnpaidAmount, setTotalUnpaidAmount] = useState(0);
 
   // Check if user is authenticated
   useEffect(() => {
@@ -45,6 +49,7 @@ const Dashboard: React.FC = () => {
           .single();
 
         if (inviteData) {
+          console.log("User was invited to this organization");
           setIsInvited(true);
         }
       } catch (error) {
@@ -54,13 +59,25 @@ const Dashboard: React.FC = () => {
 
     checkInviteStatus();
 
-    // If user is authenticated but has no organization, redirect to setup
-    if (user && !organization && !tasksLoading && !invoicesLoading && !clientsLoading && !chatLoading) {
+    // If user is authenticated but has no organization and was not invited, redirect to setup
+    if (user && !organization && !isInvited && !tasksLoading && !invoicesLoading && !clientsLoading && !chatLoading) {
       navigate("/organization/setup");
     }
 
     // Set loading state based on all data loading states
     setIsLoading(tasksLoading || invoicesLoading || clientsLoading || chatLoading);
+
+    // Calculate unread messages
+    if (getTotalUnreadCount) {
+      setUnreadMessages(getTotalUnreadCount());
+    }
+
+    // Calculate unpaid invoices
+    if (invoices) {
+      const unpaid = invoices.filter(inv => inv.status === "pending" || inv.status === "overdue");
+      setUnpaidInvoices(unpaid);
+      setTotalUnpaidAmount(unpaid.reduce((total, inv) => total + (inv.total || 0), 0));
+    }
 
     // Show welcome notification if first time
     const hasShownWelcome = localStorage.getItem("welcomed");
@@ -82,7 +99,10 @@ const Dashboard: React.FC = () => {
     invoicesLoading, 
     clientsLoading, 
     chatLoading,
-    addNotification
+    addNotification,
+    getTotalUnreadCount,
+    invoices,
+    isInvited
   ]);
 
   if (!user) {
@@ -95,6 +115,7 @@ const Dashboard: React.FC = () => {
 
   if (!organization && !isInvited) {
     navigate("/organization/setup");
+    return null;
   }
 
   // Get counts for dashboard stats

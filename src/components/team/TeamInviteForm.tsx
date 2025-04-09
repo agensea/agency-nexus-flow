@@ -1,5 +1,6 @@
+
 import React, { useState } from "react";
-import { useForm, Controller } from "react-hook-form";
+import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
@@ -54,6 +55,9 @@ const TeamInviteForm: React.FC<{ onSuccess?: () => void }> = ({ onSuccess }) => 
 
     setLoading(true);
     try {
+      console.log("Checking for existing invites");
+      
+      // Check for existing invites with this email
       const { data: existingInvites, error: existingInvitesError } = await supabase
         .from("invites")
         .select("id")
@@ -61,35 +65,54 @@ const TeamInviteForm: React.FC<{ onSuccess?: () => void }> = ({ onSuccess }) => 
         .eq("organization_id", organization.id)
         .eq("status", "pending");
 
-      if (existingInvitesError) throw existingInvitesError;
+      if (existingInvitesError) {
+        console.error("Error checking existing invites:", existingInvitesError);
+        throw existingInvitesError;
+      }
 
-      if (existingInvites?.length) {
+      // Simple check if there are any entries
+      if (existingInvites && existingInvites.length > 0) {
         toast.error("This email has already been invited");
         setLoading(false);
         return;
       }
 
+      console.log("Checking for existing profiles");
+      
+      // Check if the user already exists in the profiles table
       const { data: profiles, error: profilesError } = await supabase
         .from("profiles")
         .select("id")
         .eq("email", values.email);
 
-      if (profilesError) throw profilesError;
+      if (profilesError) {
+        console.error("Error checking profiles:", profilesError);
+        throw profilesError;
+      }
 
       let profileId = null;
 
-      if (profiles?.length) {
+      if (profiles && profiles.length > 0) {
         profileId = profiles[0].id;
 
+        console.log("Found existing profile, checking team membership");
+        
+        // Check if the user is already a member of this organization
         const { data: members, error: membersError } = await supabase
           .from("team_members")
           .select("id, status")
-          .eq("profile_id", profileId)
+          .eq("user_id", profileId)
           .eq("organization_id", organization.id);
 
-        if (membersError) throw membersError;
+        if (membersError) {
+          console.error("Error checking team members:", membersError);
+          throw membersError;
+        }
 
-        const isAlreadyMember = members?.some((m) => m.status === "active");
+        // Simple check if there are active members
+        const isAlreadyMember = members && 
+                               members.some(m => m.status === "active");
+        
         if (isAlreadyMember) {
           toast.error("This user is already a team member");
           setLoading(false);
@@ -97,6 +120,9 @@ const TeamInviteForm: React.FC<{ onSuccess?: () => void }> = ({ onSuccess }) => 
         }
       }
 
+      console.log("Creating invite token");
+      
+      // Create a new invite
       const token = crypto.randomUUID();
       const expiresAt = new Date();
       expiresAt.setDate(expiresAt.getDate() + 7);
@@ -113,21 +139,35 @@ const TeamInviteForm: React.FC<{ onSuccess?: () => void }> = ({ onSuccess }) => 
         expires_at: expiresAt.toISOString(),
       };
 
+      console.log("Saving invite to database");
+      
       const { data: createdInvites, error: createInviteError } = await supabase
         .from("invites")
         .insert(inviteData)
         .select();
 
-      if (createInviteError) throw createInviteError;
+      if (createInviteError) {
+        console.error("Error creating invite:", createInviteError);
+        throw createInviteError;
+      }
 
-      const createdInvite = createdInvites?.[0];
-      if (!createdInvite) throw new Error("Failed to create invitation");
+      if (!createdInvites || createdInvites.length === 0) {
+        throw new Error("Failed to create invitation");
+      }
+      
+      const createdInvite = createdInvites[0];
 
+      console.log("Sending invite via edge function");
+      
+      // Send the invite
       const { error: sendInviteError } = await supabase.functions.invoke("send-invite", {
         body: { inviteId: createdInvite.id },
       });
 
-      if (sendInviteError) throw sendInviteError;
+      if (sendInviteError) {
+        console.error("Error sending invite:", sendInviteError);
+        throw sendInviteError;
+      }
 
       toast.success(`Invitation sent to ${values.email}`);
       form.reset();
