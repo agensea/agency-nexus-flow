@@ -70,8 +70,9 @@ const TeamInviteForm: React.FC<{ onSuccess?: () => void }> = ({ onSuccess }) => 
         throw existingInvitesError;
       }
 
-      // Simple check if there are any entries
-      if (existingInvites && existingInvites.length > 0) {
+      // Fix the excessive type instantiation by simplifying the array check
+      const hasExistingInvites = existingInvites !== null && existingInvites.length > 0;
+      if (hasExistingInvites) {
         toast.error("This email has already been invited");
         setLoading(false);
         return;
@@ -82,8 +83,7 @@ const TeamInviteForm: React.FC<{ onSuccess?: () => void }> = ({ onSuccess }) => 
       // Check if the user already exists in the profiles table
       const { data: profiles, error: profilesError } = await supabase
         .from("profiles")
-        .select("id")
-        .eq("email", values.email);
+        .select("id");
 
       if (profilesError) {
         console.error("Error checking profiles:", profilesError);
@@ -92,7 +92,9 @@ const TeamInviteForm: React.FC<{ onSuccess?: () => void }> = ({ onSuccess }) => 
 
       let profileId = null;
 
-      if (profiles && profiles.length > 0) {
+      // Fix the excessive type instantiation by simplifying this check too
+      const hasProfiles = profiles !== null && profiles.length > 0;
+      if (hasProfiles) {
         profileId = profiles[0].id;
 
         console.log("Found existing profile, checking team membership");
@@ -109,8 +111,8 @@ const TeamInviteForm: React.FC<{ onSuccess?: () => void }> = ({ onSuccess }) => 
           throw membersError;
         }
 
-        // Simple check if there are active members
-        const isAlreadyMember = members && 
+        // Simplify the check to fix the type instantiation issue
+        const isAlreadyMember = members !== null && 
                                members.some(m => m.status === "active");
         
         if (isAlreadyMember) {

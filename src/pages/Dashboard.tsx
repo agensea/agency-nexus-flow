@@ -72,9 +72,10 @@ const Dashboard: React.FC = () => {
       setUnreadMessages(getTotalUnreadCount());
     }
 
-    // Calculate unpaid invoices
+    // Calculate unpaid invoices - fix type issue by using proper status values
     if (invoices) {
-      const unpaid = invoices.filter(inv => inv.status === "pending" || inv.status === "overdue");
+      // Fix: Use the correct statuses that match the invoice.status type
+      const unpaid = invoices.filter(inv => inv.status === "sent" || inv.status === "overdue");
       setUnpaidInvoices(unpaid);
       setTotalUnpaidAmount(unpaid.reduce((total, inv) => total + (inv.total || 0), 0));
     }
